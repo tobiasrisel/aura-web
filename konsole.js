@@ -336,6 +336,45 @@
 
   anm.beiAenderung(ansicht);
 
+  /* ---------- Microsoft 365 verbinden ----------
+   * Der Knopf erscheint, solange keine Verbindung besteht. Die Anmeldung bei
+   * Microsoft läuft im Browser (Mac: Standardbrowser, iPad: gleiche Seite);
+   * danach leitet "m365-verbinden" zurück auf die Aura-Webseite mit
+   * ?m365=verbunden bzw. ?m365=fehler.
+   */
+  const elM365 = document.getElementById("m365");
+  async function m365Stand(){
+    if(!elM365 || !anm.angemeldet()) return;
+    try{
+      const {verbunden} = await (await anm.rufen("m365-verbinden", {aktion: "status"})).json();
+      elM365.hidden = !!verbunden;
+    }catch{ elM365.hidden = true; }
+  }
+  elM365?.addEventListener("click", async () => {
+    try{
+      const {url} = await (await anm.rufen("m365-verbinden", {aktion: "start"})).json();
+      const oeffnen = window.__TAURI__?.opener?.openUrl;
+      if(oeffnen){
+        await oeffnen(url);
+        elZeile.textContent = "Melde dich im Browser bei Microsoft an und komm dann zurück.";
+      }else{
+        location.href = url;
+      }
+    }catch(e){
+      elZeile.textContent = `Microsoft verbinden: ${e.message}`;
+    }
+  });
+  // Rückkehr von Microsoft (nur Webseite)
+  const rueck = new URLSearchParams(location.search);
+  if(rueck.has("m365")){
+    elZeile.textContent = rueck.get("m365") === "verbunden"
+      ? "Microsoft 365 ist verbunden. Frag mich nach Mails, Terminen oder Dateien."
+      : `Microsoft-Verbindung fehlgeschlagen: ${rueck.get("grund") ?? "unbekannt"}`;
+    history.replaceState(null, "", location.pathname);
+  }
+  anm.beiAenderung(m365Stand);
+  m365Stand();
+
   /* ---------- Fenster ---------- */
   // Klick daneben verbirgt das Overlay (lib.rs). Verborgen wird nicht
   // weiter zugehört.
