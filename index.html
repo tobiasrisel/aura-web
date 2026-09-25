@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Aura</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Aura">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Web-Fassung für iPad, iPhone und Browser. Dieselben Skripte wie die
+   * Mac-App (konfig, anmeldung, orb, konsole); statt ⌥ Leertaste ein Tipp
+   * auf den Ball. */
+  :root{--grund:#05070C;--text:#EEF3F8;--leise:#A9B8C7;--akt:#4E6B80;--fehler:#FF9C85}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0;background:var(--grund);overflow:hidden}
+  body{
+    font-family:"Space Grotesk",-apple-system,sans-serif;font-weight:400;color:var(--text);
+    -webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .rahmen{
+    position:relative;height:100%;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:clamp(8px,1.6vh,18px);padding:clamp(56px,9vh,110px) 16px clamp(20px,4vh,48px);
+  }
+  .logo{
+    position:absolute;top:clamp(16px,3vh,36px);right:clamp(18px,4vw,48px);
+    font-size:clamp(26px,4.5vw,56px);font-weight:600;letter-spacing:.3em;margin-right:-.3em;
+  }
+  canvas{display:block;width:min(78vw,56vh,720px);height:min(78vw,56vh,720px);cursor:pointer;touch-action:manipulation}
+  .wort{font-size:clamp(13px,1.6vw,17px);letter-spacing:.22em;text-transform:uppercase;color:var(--akt);transition:color .6s;font-weight:500}
+  .zeile{min-height:2.6em;max-width:36ch;text-align:center;font-size:clamp(18px,2.4vw,26px);line-height:1.45}
+  .gehoert{min-height:1.3em;font-size:clamp(15px,1.8vw,19px);color:var(--leise);text-align:center;max-width:40ch}
+  .hilfe{font-size:14px;color:var(--leise);letter-spacing:.03em;text-align:center}
+
+  /* Anmeldung */
+  form{display:none;flex-direction:column;gap:12px;width:min(340px,86vw)}
+  .gespraech{display:contents}
+  body.abgemeldet form{display:flex}
+  body.abgemeldet .gespraech{display:none}
+  /* 16px und mehr: sonst zoomt Safari beim Antippen ins Feld */
+  input,button{
+    font:inherit;font-size:17px;color:var(--text);
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);
+    border-radius:12px;padding:12px 14px;outline:none;user-select:text;-webkit-user-select:text;
+  }
+  input:focus{border-color:var(--akt)}
+  button{cursor:pointer;background:rgba(78,107,128,.35);font-weight:500}
+  button:disabled{opacity:.5;cursor:default}
+  .meldung{min-height:1.3em;font-size:14px;color:var(--fehler);text-align:center}
+  .abmelden{background:none;border:none;padding:4px;font-size:14px;color:var(--leise);text-decoration:underline;cursor:pointer}
+</style>
+</head>
+<body class="abgemeldet">
+<div class="rahmen">
+  <div class="logo">AURA</div>
+  <canvas id="orb" aria-label="Aura – tippen zum Sprechen" role="button"></canvas>
+  <div class="wort" id="wort">bereit</div>
+
+  <form id="anmeldung" autocomplete="on">
+    <input id="email" type="email" placeholder="E-Mail" autocomplete="username" autocapitalize="off" required>
+    <input id="passwort" type="password" placeholder="Passwort" autocomplete="current-password" required>
+    <button id="los" type="submit">Anmelden</button>
+    <div class="meldung" id="meldung"></div>
+  </form>
+
+  <div class="gespraech">
+    <div class="gehoert" id="gehoert"></div>
+    <div class="zeile" id="zeile">Tippe auf den Ball und sprich.</div>
+    <div class="hilfe">Tippen: zuhören · nochmal tippen: beenden · <button class="abmelden" id="abmelden" type="button">abmelden</button></div>
+  </div>
+</div>
+<script src="konfig.js"></script>
+<script src="anmeldung.js"></script>
+<script src="orb.js"></script>
+<script src="konsole.js"></script>
+</body>
+</html>
