@@ -40,11 +40,11 @@
     position:absolute;top:clamp(16px,3vh,36px);right:clamp(18px,4vw,48px);
     font-size:clamp(26px,4.5vw,56px);font-weight:600;letter-spacing:.3em;margin-right:-.3em;
   }
-  /* Der Ball füllt das ganze Fenster (der äußere Ring darf oben und unten
-     angeschnitten sein); Text liegt unten darüber */
+  /* Der Ball sitzt mittig im ganzen Fenster, halb so groß wie die
+     Fensterhöhe; Text liegt unten */
   canvas{
     position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:0;
-    display:block;width:min(100vw,130dvh);height:min(100vw,130dvh);
+    display:block;width:min(50vw,65dvh);height:min(50vw,65dvh);
     cursor:pointer;touch-action:manipulation;
   }
   .wort{font-size:clamp(13px,1.6vw,17px);letter-spacing:.22em;text-transform:uppercase;color:var(--akt);transition:color .6s;font-weight:500}
