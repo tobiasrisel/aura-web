@@ -20,6 +20,8 @@
   const tauri  = window.__TAURI__;
   const rufen  = tauri?.core?.invoke;
   const horchen = tauri?.event?.listen;
+  // Nur die Mac-App kann Dateien auf dem Mac aufraeumen (src-tauri/src/dateien.rs).
+  const FAEHIGKEITEN = rufen ? ["mac_dateien"] : [];
 
   /* Der Orb zeichnet nur bei sichtbarem Fenster. Beim Programmstart ist das
    * Overlay ausgeblendet, sein Webview laeuft aber schon – deshalb der Blick
@@ -139,8 +141,25 @@
     zustand("denken");
     elZeile.textContent = "…";
     try{
-      const antwort = await anm.rufen("aura", {aktion: "antwort", frage, verlauf: verlauf.slice(-12)});
-      const {antwort: text} = await antwort.json();
+      let ergebnis = await (await anm.rufen("aura", {
+        aktion: "antwort", frage, verlauf: verlauf.slice(-12), faehigkeiten: FAEHIGKEITEN,
+      })).json();
+      // Will Aura etwas auf dem Mac tun, fuehrt die App es aus und gibt die
+      // Ergebnisse zurueck, bis eine Antwort kommt.
+      while(ergebnis.lokal){
+        if(meiner !== lauf) return;
+        elZeile.textContent = "Ich räume auf …";
+        const ergebnisse = [];
+        for(const a of ergebnis.lokal.aufrufe){
+          try{
+            ergebnisse.push({id: a.id, text: await rufen("mac_werkzeug", {name: a.name, eingabe: a.eingabe})});
+          }catch(e){
+            ergebnisse.push({id: a.id, text: String(e), fehler: true});
+          }
+        }
+        ergebnis = await (await anm.rufen("aura", {aktion: "weiter", id: ergebnis.lokal.id, ergebnisse})).json();
+      }
+      const text = ergebnis.antwort;
       if(meiner !== lauf) return;
       verlauf.push({rolle: "du", text: frage}, {rolle: "aura", text});
       elZeile.textContent = text;
@@ -346,8 +365,10 @@
   async function m365Stand(){
     if(!elM365 || !anm.angemeldet()) return;
     try{
-      const {verbunden} = await (await anm.rufen("m365-verbinden", {aktion: "status"})).json();
+      const {verbunden, rechte_fehlen} = await (await anm.rufen("m365-verbinden", {aktion: "status"})).json();
       elM365.hidden = !!verbunden;
+      // Verbunden, aber noch ohne Schreibrechte: einmal neu verbinden.
+      elM365.querySelector("button").textContent = rechte_fehlen ? "Microsoft neu verbinden" : "Microsoft verbinden";
     }catch{ elM365.hidden = true; }
   }
   elM365?.addEventListener("click", async () => {
