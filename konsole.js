@@ -357,11 +357,21 @@
   anm.beiAenderung(ansicht);
 
   /* ---------- Microsoft 365 verbinden ----------
-   * Der Knopf erscheint, solange keine Verbindung besteht. Die Anmeldung bei
-   * Microsoft läuft im Browser (Mac: Standardbrowser, iPad: gleiche Seite);
-   * danach leitet "m365-verbinden" zurück auf die Aura-Webseite mit
-   * ?m365=verbunden bzw. ?m365=fehler.
+   * Der Knopf erscheint, solange keine Verbindung besteht. In der Mac-App
+   * läuft die Anmeldung in einem eigenen Fenster der App (lib.rs,
+   * anmeldung_oeffnen), das sich danach selbst schließt und
+   * "aura://angemeldet" meldet – kein Browser, keine Webseite. Im Browser
+   * (iPad) läuft sie auf derselben Seite; danach leitet die Function zurück
+   * mit ?m365=verbunden bzw. ?m365=fehler.
    */
+  async function anmeldungOeffnen(url, name){
+    if(rufen){
+      await rufen("anmeldung_oeffnen", {url});
+      elZeile.textContent = `Melde dich im Fenster bei ${name} an.`;
+    }else{
+      location.href = url;
+    }
+  }
   const elM365 = document.getElementById("m365");
   async function m365Stand(){
     if(!elM365 || !anm.angemeldet()) return;
@@ -374,14 +384,9 @@
   }
   elM365?.addEventListener("click", async () => {
     try{
-      const {url} = await (await anm.rufen("m365-verbinden", {aktion: "start"})).json();
-      const oeffnen = window.__TAURI__?.opener?.openUrl;
-      if(oeffnen){
-        await oeffnen(url);
-        elZeile.textContent = "Melde dich im Browser bei Microsoft an und komm dann zurück.";
-      }else{
-        location.href = url;
-      }
+      const {url, fehler} = await (await anm.rufen("m365-verbinden", {aktion: "start", app: !!rufen})).json();
+      if(!url) throw new Error(fehler);
+      await anmeldungOeffnen(url, "Microsoft");
     }catch(e){
       elZeile.textContent = `Microsoft verbinden: ${e.message}`;
     }
@@ -498,11 +503,9 @@
         k.append(knopf(s.verbunden ? "Neu verbinden" : "Verbinden", async (b) => {
           b.disabled = true;
           try{
-            const {url, fehler} = await (await anm.rufen("konten-verbinden", {aktion: "start", anbieter})).json();
+            const {url, fehler} = await (await anm.rufen("konten-verbinden", {aktion: "start", anbieter, app: !!rufen})).json();
             if(!url) throw new Error(fehler);
-            const oeffnen = window.__TAURI__?.opener?.openUrl;
-            if(oeffnen){ await oeffnen(url); elZeile.textContent = `Melde dich im Browser bei ${name} an.`; }
-            else location.href = url;
+            await anmeldungOeffnen(url, name);
           }catch(e){ wann.textContent = String(e.message ?? e); b.disabled = false; }
         }));
       }
@@ -522,6 +525,12 @@
       ? `${name} ist verbunden.` : `${name}-Verbindung fehlgeschlagen: ${rueck.get("grund") ?? "unbekannt"}`;
     history.replaceState(null, "", location.pathname);
   }
+  // Mac-App: Anmeldefenster geschlossen → Stand neu holen.
+  horchen?.("aura://angemeldet", async () => {
+    await m365Stand();
+    if(!elTafel.hidden && elTafel.dataset.art === "konten") kontenZeigen();
+    elZeile.textContent = "Anmeldung beendet – der Stand ist aktualisiert.";
+  });
   anm.beiAenderung(freigabenLaden);
   freigabenLaden();
   setInterval(() => { if(!document.hidden) freigabenLaden(); }, 60000);
