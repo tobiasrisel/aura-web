@@ -160,6 +160,7 @@
         ergebnis = await (await anm.rufen("aura", {aktion: "weiter", id: ergebnis.lokal.id, ergebnisse})).json();
       }
       const text = ergebnis.antwort;
+      freigabenLaden();
       if(meiner !== lauf) return;
       verlauf.push({rolle: "du", text: frage}, {rolle: "aura", text});
       elZeile.textContent = text;
@@ -395,6 +396,135 @@
   }
   anm.beiAenderung(m365Stand);
   m365Stand();
+
+  /* ---------- Tafel: Freigaben und Konten ----------
+   * Freigaben (Aura-Vertrag § 5): Tobias entscheidet per Knopf; ausgeführt
+   * wird serverseitig genau der angezeigte Entwurf. Konten: LinkedIn und
+   * Meta verbinden (Function "konten-verbinden").
+   */
+  const elTafel = document.getElementById("tafel");
+  const elTafelInhalt = document.getElementById("tafel-inhalt");
+  const elFreigabenKnopf = document.getElementById("freigaben-knopf");
+  const text = (t) => document.createTextNode(String(t ?? ""));
+  function knopf(beschriftung, bei, klasse){
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = beschriftung;
+    if(klasse) b.className = klasse;
+    b.addEventListener("click", (e) => { e.stopPropagation(); bei(b); });
+    return b;
+  }
+  function tafelZeigen(titel){
+    elTafelInhalt.replaceChildren();
+    const h = document.createElement("h2"); h.textContent = titel;
+    elTafelInhalt.append(h);
+    elTafel.hidden = false;
+  }
+  document.getElementById("tafel-zu")?.addEventListener("click", (e) => { e.stopPropagation(); elTafel.hidden = true; });
+  elTafel?.addEventListener("mousedown", (e) => e.stopPropagation());
+  elTafel?.addEventListener("click", (e) => e.stopPropagation());
+
+  let offeneFreigaben = [];
+  async function freigabenLaden(){
+    if(!elFreigabenKnopf || !anm.angemeldet()) return;
+    try{
+      const {freigaben} = await (await anm.rufen("aura", {aktion: "freigaben"})).json();
+      offeneFreigaben = freigaben ?? [];
+      elFreigabenKnopf.hidden = !offeneFreigaben.length;
+      elFreigabenKnopf.querySelector("button").textContent = `Freigaben (${offeneFreigaben.length})`;
+      if(!elTafel.hidden && elTafel.dataset.art === "freigaben") freigabenZeigen();
+    }catch{ /* still */ }
+  }
+  function freigabenZeigen(){
+    elTafel.dataset.art = "freigaben";
+    tafelZeigen("Freigaben");
+    if(!offeneFreigaben.length){ elTafelInhalt.append(text("Nichts offen.")); return; }
+    for(const f of offeneFreigaben){
+      const p = document.createElement("div"); p.className = "posten";
+      const was = document.createElement("div"); was.className = "was"; was.textContent = f.wirkung;
+      const wann = document.createElement("div"); wann.className = "wann";
+      wann.textContent = `${f.angefragt}${f.begruendung ? " · " + f.begruendung : ""}`;
+      const pre = document.createElement("pre");
+      const n = f.nutzlast ?? {};
+      const kopf = [
+        n.an?.length ? `An: ${[].concat(n.an).join(", ")}` : "",
+        n.cc?.length ? `Cc: ${n.cc.join(", ")}` : "",
+        n.betreff ? `Betreff: ${n.betreff}` : "",
+        n.zeit ? `Zeit: ${String(n.zeit).replace("T", " ")}` : "",
+        n.bild_url ? `Bild: ${n.bild_url}` : "",
+        n.link ? `Link: ${n.link}` : "",
+      ].filter(Boolean).join("\n");
+      const rumpf = n.text ?? n.titel ?? f.entwurf ?? "";
+      pre.textContent = kopf ? `${kopf}\n\n${rumpf}` : rumpf;
+      const fehler = document.createElement("div"); fehler.className = "fehler";
+      if(f.fehler) fehler.textContent = `Letzter Versuch: ${f.fehler}`;
+      const k = document.createElement("div"); k.className = "knoepfe";
+      const entscheiden = async (entscheidung, b) => {
+        k.querySelectorAll("button").forEach((x) => x.disabled = true);
+        b.textContent = "…";
+        try{
+          const r = await anm.rufen("aura", {aktion: "entscheiden", id: f.id, entscheidung});
+          const d = await r.json();
+          if(!r.ok) throw new Error(d.fehler ?? r.status);
+          elZeile.textContent = entscheidung === "freigeben" ? `Erledigt: ${f.wirkung}.` : "Abgelehnt.";
+        }catch(e){
+          fehler.textContent = String(e.message ?? e);
+        }
+        await freigabenLaden();
+        if(!offeneFreigaben.length) elTafel.hidden = true;
+      };
+      k.append(knopf("Freigeben", (b) => entscheiden("freigeben", b)),
+               knopf("Ablehnen", (b) => entscheiden("ablehnen", b), "ablehnen"));
+      p.append(was, wann, pre, fehler, k);
+      elTafelInhalt.append(p);
+    }
+  }
+  elFreigabenKnopf?.addEventListener("click", (e) => { e.stopPropagation(); freigabenZeigen(); });
+
+  async function kontenZeigen(){
+    elTafel.dataset.art = "konten";
+    tafelZeigen("Konten");
+    let stand = {};
+    try{ stand = await (await anm.rufen("konten-verbinden", {aktion: "status"})).json(); }catch{ /* leer */ }
+    for(const [anbieter, name] of [["linkedin", "LinkedIn"], ["meta", "Facebook-Seiten und Instagram"]]){
+      const s = stand[anbieter] ?? {};
+      const p = document.createElement("div"); p.className = "posten";
+      const was = document.createElement("div"); was.className = "was"; was.textContent = name;
+      const wann = document.createElement("div"); wann.className = "wann";
+      wann.textContent = !s.eingerichtet ? "Noch nicht eingerichtet (App-Schlüssel fehlen)."
+        : s.verbunden ? `Verbunden${s.konto ? " als " + s.konto : ""}${s.laeuft_ab ? " · bis " + new Date(s.laeuft_ab).toLocaleDateString("de-DE") : ""}`
+        : "Nicht verbunden.";
+      const k = document.createElement("div"); k.className = "knoepfe";
+      if(s.eingerichtet){
+        k.append(knopf(s.verbunden ? "Neu verbinden" : "Verbinden", async (b) => {
+          b.disabled = true;
+          try{
+            const {url, fehler} = await (await anm.rufen("konten-verbinden", {aktion: "start", anbieter})).json();
+            if(!url) throw new Error(fehler);
+            const oeffnen = window.__TAURI__?.opener?.openUrl;
+            if(oeffnen){ await oeffnen(url); elZeile.textContent = `Melde dich im Browser bei ${name} an.`; }
+            else location.href = url;
+          }catch(e){ wann.textContent = String(e.message ?? e); b.disabled = false; }
+        }));
+      }
+      p.append(was, wann, k);
+      elTafelInhalt.append(p);
+    }
+    const hinweis = document.createElement("div"); hinweis.className = "wann";
+    hinweis.textContent = "Öffentliche Beiträge gehen immer erst hier zur Freigabe (Aura-Vertrag § 3.4).";
+    elTafelInhalt.append(hinweis);
+  }
+  document.getElementById("konten-knopf")?.addEventListener("click", (e) => { e.stopPropagation(); kontenZeigen(); });
+
+  // Rückkehr von LinkedIn/Meta (nur Webseite)
+  if(rueck.has("konto")){
+    const name = rueck.get("konto") === "meta" ? "Facebook/Instagram" : "LinkedIn";
+    elZeile.textContent = rueck.get("ergebnis") === "verbunden"
+      ? `${name} ist verbunden.` : `${name}-Verbindung fehlgeschlagen: ${rueck.get("grund") ?? "unbekannt"}`;
+    history.replaceState(null, "", location.pathname);
+  }
+  anm.beiAenderung(freigabenLaden);
+  freigabenLaden();
+  setInterval(() => { if(!document.hidden) freigabenLaden(); }, 60000);
 
   /* ---------- Fenster ---------- */
   // Klick daneben verbirgt das Overlay (lib.rs). Verborgen wird nicht

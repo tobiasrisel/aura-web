@@ -73,6 +73,24 @@
   button:disabled{opacity:.5;cursor:default}
   .meldung{min-height:1.3em;font-size:14px;color:var(--fehler);text-align:center}
   .abmelden{background:none;border:none;padding:4px;font-size:14px;color:var(--leise);text-decoration:underline;cursor:pointer}
+
+  /* Tafel: Freigaben und Konten (konsole.js) */
+  .tafel{
+    position:absolute;inset:14px;z-index:5;overflow:auto;padding:22px 22px 18px;border-radius:22px;
+    background:#05070C;border:1px solid rgba(255,255,255,.1);text-align:left;
+    user-select:text;-webkit-user-select:text;
+  }
+  .tafel[hidden]{display:none}
+  .tafel h2{margin:0 0 12px;font-size:15px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--leise)}
+  .tafel .schliessen{position:absolute;top:12px;right:16px}
+  .posten{border-top:1px solid rgba(255,255,255,.1);padding:12px 0}
+  .posten .was{font-weight:600;margin-bottom:4px}
+  .posten .wann{font-size:12.5px;color:var(--leise);margin-bottom:6px}
+  .posten pre{white-space:pre-wrap;font:inherit;font-size:14.5px;line-height:1.45;margin:0 0 10px;max-height:14em;overflow:auto;color:var(--text)}
+  .posten .knoepfe{display:flex;gap:10px}
+  .posten .knoepfe button{padding:7px 14px;font-size:14px}
+  .posten .fehler{color:var(--fehler);font-size:13px;margin-bottom:6px}
+  .ablehnen{background:rgba(255,255,255,.05)!important}
 </style>
 </head>
 <body class="abgemeldet">
@@ -91,7 +109,11 @@
   <div class="gespraech">
     <div class="gehoert" id="gehoert"></div>
     <div class="zeile" id="zeile">Tippe auf den Ball und sprich.</div>
-    <div class="hilfe">Tippen: zuhören · nochmal tippen: beenden <span id="m365" hidden>· <button class="abmelden" type="button">Microsoft verbinden</button></span> · <button class="abmelden" id="abmelden" type="button">abmelden</button></div>
+    <div class="hilfe">Tippen: zuhören · nochmal tippen: beenden <span id="m365" hidden>· <button class="abmelden" type="button">Microsoft verbinden</button></span> <span id="freigaben-knopf" hidden>· <button class="abmelden" type="button">Freigaben</button></span> · <button class="abmelden" id="konten-knopf" type="button">Konten</button> · <button class="abmelden" id="abmelden" type="button">abmelden</button></div>
+  </div>
+  <div class="tafel" id="tafel" hidden>
+    <button class="abmelden schliessen" type="button" id="tafel-zu">schließen</button>
+    <div id="tafel-inhalt"></div>
   </div>
 </div>
 <script src="konfig.js"></script>
