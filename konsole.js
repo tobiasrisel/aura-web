@@ -3,6 +3,8 @@
  * Hören    → eigene Aufnahme → Edge Function "sprache-hoeren" (ElevenLabs Scribe)
  * Denken   → Edge Function "aura" (Claude, mit Aufgaben und Freigaben)
  * Sprechen → Edge Function "sprache-stimme" (ElevenLabs, Sarah)
+ * Partikelmodus → "Partikelmodus an" / "Partikelmodus aus"; dazwischen wird
+ *   jeder Satz zu Wort, Figur oder Animation statt zu einer Frage an Aura.
  *
  * Beide Functions verlangen die Anmeldung (anmeldung.js). Modell- und
  * Stimmschlüssel liegen ausschließlich in den Function-Secrets.
@@ -12,7 +14,12 @@
 
   const anm = window.AuraAnmeldung;
 
-  const orb     = AuraOrb(document.getElementById("orb"), {punkte: 1600, anteil: 0.36});
+  // Der Orb zeichnet auf der ganzen Fläche, sitzt aber auf #orbplatz.
+  const elPlatz = document.getElementById("orbplatz");
+  const orb     = AuraOrb(document.getElementById("orb"), {
+    anker: elPlatz,
+    punkte: matchMedia("(pointer: coarse)").matches ? 6000 : 9000,
+  });
   const elWort  = document.getElementById("wort");
   const elZeile = document.getElementById("zeile");
   const elHoert = document.getElementById("gehoert");
@@ -50,6 +57,21 @@
     orb.zustand(z);
     elWort.textContent = orb.wort();
     rufen?.("zustand_melden", {zustand: z});
+  }
+
+  /* ---------- Partikelmodus ----------
+   * Gilt ein erkannter Satz dem Partikelmodus, geht er nicht an Aura. Im
+   * Modus wird weiter zugehört, bis er endet oder das Fenster zugeht.
+   */
+  function partikel(satz){
+    const befehl = AuraOrb.deuten(satz, orb.imPartikelmodus());
+    if(!befehl) return false;
+    const rueck = orb.befolgen(befehl);
+    document.body.classList.toggle("partikel", orb.imPartikelmodus());
+    if(rueck) elZeile.textContent = rueck;
+    rufen?.("partikel_melden", {befehl: JSON.stringify(befehl)});
+    zustand("ruhe");
+    return true;
   }
 
   /* ---------- Gesprächslauf ----------
@@ -263,6 +285,7 @@
       aufnahme = null;
       if(eigene.abbruch || meiner !== lauf){ zustand("ruhe"); return; }
       if(!gesprochen){
+        if(orb.imPartikelmodus() && offen){ hoeren(true); return; }
         elZeile.textContent = weiter ? "Ich bin da, wenn du noch etwas hast." : "Ich habe nichts gehört.";
         zustand("ruhe");
         return;
@@ -276,6 +299,11 @@
         if(meiner !== lauf) return;
         if(!text){ elZeile.textContent = "Das habe ich nicht verstanden."; zustand("ruhe"); return; }
         elHoert.textContent = text;
+        if(partikel(text)){
+          if(orb.imPartikelmodus() && offen && meiner === lauf) hoeren(true);
+          return;
+        }
+        if(orb.imPartikelmodus()){ elZeile.textContent = "Das habe ich nicht verstanden."; hoeren(true); return; }
         antworten(text);
       }catch(e){
         console.error("Hören:", e);
@@ -542,11 +570,12 @@
   // Klick daneben: lib.rs verbirgt das Fenster und meldet "aura://sichtbar"
   // = false; sichtbar() beendet dann Aufnahme und Ton.
 
-  // Verschieben: -webkit-app-region gibt es nur in Electron. In Tauri zieht
-  // startDragging() das Fenster, solange nicht auf ein Bedienelement geklickt wird.
+  // Das Overlay ist bildschirmweit (lib.rs). Ein Klick neben das Bedienfeld
+  // schließt es – wie früher der Klick neben das kleine Fenster.
   document.addEventListener("mousedown", e => {
-    if(e.button !== 0 || e.target.closest("input, button, a, textarea")) return;
-    window.__TAURI__?.window?.getCurrentWindow?.().startDragging().catch(() => {});
+    if(!fenster || e.button !== 0 || e.target.closest("#rahmen, #tafel")) return;
+    beenden();
+    rufen?.("overlay_schliessen");
   });
 
   document.addEventListener("keydown", e => {
@@ -565,7 +594,7 @@
 
   // Tipp auf den Ball (iPad, Browser): wie ⌥ Leertaste – und schaltet den
   // Ton frei, den Safari sonst verweigert.
-  document.getElementById("orb").addEventListener("click", () => {
+  (elPlatz || document.getElementById("orb")).addEventListener("click", () => {
     if(!anm.angemeldet()) return;
     entsperren();
     taste();
@@ -576,6 +605,10 @@
     if(ev.payload === "hoeren") hoeren();
     else zustand(ev.payload);
   });
+
+  // Zum Ausprobieren ohne Mikrofon, in den Entwicklerwerkzeugen:
+  //   aura.sage("Partikelmodus an");  aura.sage("zeig ein Herz");
+  window.aura = {sage: t => partikel(t) || antworten(t), figuren: AuraOrb.figuren};
 
   zustand("ruhe");
   ansicht();

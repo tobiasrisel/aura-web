@@ -47,11 +47,14 @@
   }
   /* Der Ball sitzt mittig im ganzen Fenster, halb so groß wie die
      Fensterhöhe; Text liegt unten */
-  canvas{
+  .orbplatz{
     position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:0;
-    display:block;width:min(50vw,65dvh);height:min(50vw,65dvh);
+    width:min(50vw,65dvh);height:min(50vw,65dvh);
     cursor:pointer;touch-action:manipulation;
   }
+  /* Gezeichnet wird auf der ganzen Fläche – Wörter im Partikelmodus
+     brauchen die Breite; der Ball selbst bleibt auf .orbplatz. */
+  canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;pointer-events:none;z-index:0}
   .wort{font-size:clamp(13px,1.6vw,17px);letter-spacing:.22em;text-transform:uppercase;color:var(--akt);transition:color .6s;font-weight:500}
   .zeile{min-height:2.6em;max-width:36ch;text-align:center;font-size:clamp(18px,2.4vw,26px);line-height:1.45}
   .gehoert{min-height:1.3em;font-size:clamp(15px,1.8vw,19px);color:var(--leise);text-align:center;max-width:40ch}
@@ -94,9 +97,10 @@
 </style>
 </head>
 <body class="abgemeldet">
+<canvas id="orb"></canvas>
 <div class="rahmen">
   <div class="logo">AURA</div>
-  <canvas id="orb" aria-label="Aura – tippen zum Sprechen" role="button"></canvas>
+  <div class="orbplatz" id="orbplatz" aria-label="Aura – tippen zum Sprechen" role="button"></div>
   <div class="wort" id="wort">bereit</div>
 
   <form id="anmeldung" autocomplete="on">
