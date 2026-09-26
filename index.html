@@ -2,6 +2,11 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<script>
+  // Nur über https: sonst meldet der Browser „nicht sicher“ und sperrt das Mikrofon.
+  if(location.protocol === "http:" && location.hostname !== "localhost")
+    location.replace("https://" + location.host + location.pathname + location.search);
+</script>
 <title>Aura</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#05070C">

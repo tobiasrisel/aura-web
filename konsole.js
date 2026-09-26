@@ -12,7 +12,7 @@
 
   const anm = window.AuraAnmeldung;
 
-  const orb     = AuraOrb(document.getElementById("orb"), {punkte: 1600, anteil: 0.47});
+  const orb     = AuraOrb(document.getElementById("orb"), {punkte: 1600, anteil: 0.36});
   const elWort  = document.getElementById("wort");
   const elZeile = document.getElementById("zeile");
   const elHoert = document.getElementById("gehoert");
