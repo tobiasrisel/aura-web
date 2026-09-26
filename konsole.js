@@ -456,6 +456,7 @@
         n.betreff ? `Betreff: ${n.betreff}` : "",
         n.zeit ? `Zeit: ${String(n.zeit).replace("T", " ")}` : "",
         n.bild_url ? `Bild: ${n.bild_url}` : "",
+        n.anhang_namen?.length ? `Anhänge: ${n.anhang_namen.join(", ")}` : "",
         n.link ? `Link: ${n.link}` : "",
       ].filter(Boolean).join("\n");
       const rumpf = n.text ?? n.titel ?? f.entwurf ?? "";
