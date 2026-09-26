@@ -29,14 +29,24 @@
   }
   .rahmen{
     position:relative;height:100%;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
     gap:clamp(8px,1.6vh,18px);padding:clamp(56px,9vh,110px) 16px clamp(20px,4vh,48px);
   }
+  body.abgemeldet .rahmen{justify-content:center}
+  form,.wort,.gespraech > *{position:relative;z-index:1}
+  .logo{z-index:1}
+  .wort,.zeile,.gehoert{pointer-events:none;text-shadow:0 1px 12px rgba(5,7,12,.9)}
   .logo{
     position:absolute;top:clamp(16px,3vh,36px);right:clamp(18px,4vw,48px);
     font-size:clamp(26px,4.5vw,56px);font-weight:600;letter-spacing:.3em;margin-right:-.3em;
   }
-  canvas{display:block;width:min(78vw,56vh,720px);height:min(78vw,56vh,720px);cursor:pointer;touch-action:manipulation}
+  /* Der Ball füllt das ganze Fenster (der äußere Ring darf oben und unten
+     angeschnitten sein); Text liegt unten darüber */
+  canvas{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:0;
+    display:block;width:min(100vw,130dvh);height:min(100vw,130dvh);
+    cursor:pointer;touch-action:manipulation;
+  }
   .wort{font-size:clamp(13px,1.6vw,17px);letter-spacing:.22em;text-transform:uppercase;color:var(--akt);transition:color .6s;font-weight:500}
   .zeile{min-height:2.6em;max-width:36ch;text-align:center;font-size:clamp(18px,2.4vw,26px);line-height:1.45}
   .gehoert{min-height:1.3em;font-size:clamp(15px,1.8vw,19px);color:var(--leise);text-align:center;max-width:40ch}
