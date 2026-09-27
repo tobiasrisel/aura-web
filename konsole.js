@@ -612,4 +612,6 @@
 
   zustand("ruhe");
   ansicht();
+  // Hinweis der App beim Start (etwa: ⌥ Leertaste gehört einer anderen App).
+  rufen?.("hinweis_abholen").then(h => { if(h) elZeile.textContent = h; }).catch(() => {});
 })();
