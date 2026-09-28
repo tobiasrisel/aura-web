@@ -573,7 +573,7 @@
   // Das Overlay ist bildschirmweit (lib.rs). Ein Klick neben das Bedienfeld
   // schließt es – wie früher der Klick neben das kleine Fenster.
   document.addEventListener("mousedown", e => {
-    if(!fenster || e.button !== 0 || e.target.closest("#rahmen, #tafel")) return;
+    if(!fenster || !document.getElementById("rahmen") || e.button !== 0 || e.target.closest("#rahmen, #tafel")) return;
     beenden();
     rufen?.("overlay_schliessen");
   });
