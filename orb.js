@@ -379,6 +379,12 @@
   /* ================================================================== */
   function AuraOrb(cv, optionen = {}) {
     const N = optionen.punkte || 10000;
+    // Sparbetrieb (Mac-App): weniger Bilder je Sekunde und geringere
+    // Aufloesung – WKWebView zeichnet sonst mehrere Baelle auf Kosten der
+    // Bedienung.
+    const BILD_MS = optionen.fps ? 1000/optionen.fps : 0;
+    const DPR_MAX = optionen.dprMax || 2;
+    let letztesBild = 0;
     const anker = optionen.anker || null;
     const sparsam = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -480,7 +486,7 @@
     /* --- Masse --- */
     let W = 1, H = 1, dpr = 1;
     function masse() {
-      dpr = Math.min(devicePixelRatio || 1, 2);
+      dpr = Math.min(devicePixelRatio || 1, DPR_MAX);
       W = cv.clientWidth || innerWidth; H = cv.clientHeight || innerHeight;
       cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
       if (gl) gl.viewport(0, 0, cv.width, cv.height);
@@ -607,6 +613,8 @@
 
     function takt(jetzt) {
       if (!laeuft) return;
+      if (BILD_MS && jetzt && jetzt - letztesBild < BILD_MS - 2) { bildNr = requestAnimationFrame(takt); return; }
+      letztesBild = jetzt || performance.now();
       const dt = Math.min(0.05, Math.max(0, ((jetzt || performance.now()) - letzt)/1000)) * (sparsam ? 0.25 : 1);
       letzt = jetzt || performance.now();
 

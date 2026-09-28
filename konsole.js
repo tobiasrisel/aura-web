@@ -18,7 +18,9 @@
   const elPlatz = document.getElementById("orbplatz");
   const orb     = AuraOrb(document.getElementById("orb"), {
     anker: elPlatz,
-    punkte: matchMedia("(pointer: coarse)").matches ? 6000 : 9000,
+    // In der Mac-App sparsam: dort zeichnen bis zu drei Baelle (Fenster, Wand, Kugel).
+    punkte: window.__TAURI__ ? 4000 : matchMedia("(pointer: coarse)").matches ? 6000 : 9000,
+    ...(window.__TAURI__ ? {fps: 30, dprMax: 1.5} : {}),
   });
   const elWort  = document.getElementById("wort");
   const elZeile = document.getElementById("zeile");
