@@ -420,11 +420,14 @@
     }
   });
 
-  document.getElementById("abmelden").addEventListener("click", () => {
-    beenden();
+  // Abmelden zuerst – was danach schiefgeht, darf es nicht verhindern.
+  document.getElementById("abmelden").addEventListener("click", (e) => {
+    e.stopPropagation();
+    anm.abmelden();
     verlauf.length = 0;
     elProtokoll?.replaceChildren();
-    anm.abmelden();
+    try{ beenden(); }catch(err){ console.error("Beenden:", err); }
+    ansicht();
   });
 
   anm.beiAenderung(ansicht);
