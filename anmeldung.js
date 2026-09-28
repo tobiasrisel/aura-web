@@ -5,6 +5,10 @@
  * Fenster denselben Ursprung haben. Meldet sich das Overlay an, erfährt die
  * Wand es über das storage-Ereignis.
  *
+ * Zweiter Weg: mit Microsoft (mitMicrosoft). Die Function "m365-verbinden"
+ * prüft das Microsoft-Konto und schickt die Seite mit einem Einmal-Schlüssel
+ * im Fragment (#anmeldung=…) zurück; einloesen() tauscht ihn gegen die Sitzung.
+ *
  * Aufruf:  await AuraAnmeldung.anmelden(email, passwort);
  *          const token = await AuraAnmeldung.token();   // null = abgemeldet
  *          AuraAnmeldung.abmelden();
@@ -33,11 +37,14 @@ window.AuraAnmeldung = (() => {
   addEventListener("storage", e => { if(e.key === ABLAGE) melden(); });
 
   async function tokenAnfrage(art, rumpf){
-    const antwort = await fetch(`${SUPABASE}/auth/v1/token?grant_type=${art}`, {
+    return sitzungAus(await fetch(`${SUPABASE}/auth/v1/token?grant_type=${art}`, {
       method: "POST",
       headers: {"apikey": SCHLUESSEL, "Content-Type": "application/json"},
       body: JSON.stringify(rumpf)
-    });
+    }));
+  }
+
+  async function sitzungAus(antwort){
     const daten = await antwort.json().catch(() => ({}));
     if(!antwort.ok){
       const e = new Error(daten.error_description || daten.msg || `HTTP ${antwort.status}`);
@@ -54,6 +61,27 @@ window.AuraAnmeldung = (() => {
 
   async function anmelden(email, passwort){
     const s = await tokenAnfrage("password", {email: email.trim(), password: passwort});
+    schreiben(s);
+    return s.email;
+  }
+
+  async function mitMicrosoft(){
+    const antwort = await fetch(`${SUPABASE}/functions/v1/m365-verbinden`, {
+      method: "POST",
+      headers: {"apikey": SCHLUESSEL, "Content-Type": "application/json"},
+      body: JSON.stringify({aktion: "anmelden"})
+    });
+    const daten = await antwort.json().catch(() => ({}));
+    if(!antwort.ok || !daten.url) throw new Error(daten.fehler || `HTTP ${antwort.status}`);
+    location.href = daten.url;
+  }
+
+  async function einloesen(schluessel){
+    const s = await sitzungAus(await fetch(`${SUPABASE}/auth/v1/verify`, {
+      method: "POST",
+      headers: {"apikey": SCHLUESSEL, "Content-Type": "application/json"},
+      body: JSON.stringify({type: "magiclink", token_hash: schluessel})
+    }));
     schreiben(s);
     return s.email;
   }
@@ -124,7 +152,7 @@ window.AuraAnmeldung = (() => {
   }
 
   return {
-    anmelden, abmelden, token, rufen,
+    anmelden, abmelden, token, rufen, mitMicrosoft, einloesen,
     angemeldet: () => !!lesen(),
     email: () => lesen()?.email ?? null,
     beiAenderung: fn => hoerer.add(fn)

@@ -378,6 +378,21 @@
     }
   }
 
+  // Anmeldung mit Microsoft: hin zu Microsoft, zurück mit #anmeldung=…
+  document.getElementById("microsoft")?.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    elMeldung.textContent = "";
+    try{ await anm.mitMicrosoft(); }
+    catch(err){ elMeldung.textContent = `Anmeldung mit Microsoft: ${err.message}`; }
+  });
+  if(location.hash.startsWith("#anmeldung=")){
+    const schluessel = decodeURIComponent(location.hash.slice("#anmeldung=".length));
+    history.replaceState(null, "", location.pathname);
+    anm.einloesen(schluessel)
+      .then(() => { ansicht(); zeigen("Angemeldet. Tippe auf den Ball und sprich."); })
+      .catch((err) => { elMeldung.textContent = `Anmeldung fehlgeschlagen: ${err.message}`; });
+  }
+
   form.addEventListener("submit", async e => {
     e.preventDefault();
     elLos.disabled = true;
@@ -449,6 +464,8 @@
     zeigen(rueck.get("m365") === "verbunden"
       ? "Microsoft 365 ist verbunden. Frag mich nach Mails, Terminen oder Dateien."
       : `Microsoft-Verbindung fehlgeschlagen: ${rueck.get("grund") ?? "unbekannt"}`);
+    // Abgemeldet (Anmeldung mit Microsoft gescheitert): Grund am Formular zeigen
+    if(!anm.angemeldet() && rueck.get("m365") !== "verbunden") elMeldung.textContent = elZeile.textContent;
     history.replaceState(null, "", location.pathname);
   }
   anm.beiAenderung(m365Stand);
@@ -569,7 +586,63 @@
     hinweis.textContent = "Öffentliche Beiträge gehen immer erst hier zur Freigabe (Aura-Vertrag § 3.4).";
     elTafelInhalt.append(hinweis);
   }
-  document.getElementById("konten-knopf")?.addEventListener("click", (e) => { e.stopPropagation(); kontenZeigen(); });
+  document.getElementById("konten-knopf")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if(ich?.rolle === "kollege") meineFreigabenZeigen(); else kontenZeigen();
+  });
+
+  /* ---------- Wer ist angemeldet ----------
+   * Kollegen sehen statt „Konten“ (Tobias' persönliche Konten) ihre eigenen
+   * Einstellungen: was Aura für sie tun und was sie über sie auswerten darf.
+   * Das entscheidet jeder nur für sich; der Server nimmt es nur von ihm an.
+   */
+  let ich = null;
+  async function ichLaden(){
+    if(!anm.angemeldet()){ ich = null; document.body.classList.remove("kollege"); return; }
+    try{ ich = await (await anm.rufen("aura", {aktion: "ich"})).json(); }catch{ return; }
+    document.body.classList.toggle("kollege", ich.rolle === "kollege");
+    const k = document.getElementById("konten-knopf");
+    if(k) k.textContent = ich.rolle === "kollege" ? "Meine Freigaben" : "Konten";
+  }
+  function meineFreigabenZeigen(){
+    elTafel.dataset.art = "ich";
+    tafelZeigen("Meine Freigaben");
+    const vorname = String(ich?.name ?? "").split(" ")[0];
+    const einleitung = document.createElement("div"); einleitung.className = "wann";
+    einleitung.textContent = `Hallo ${vorname}. Aura liest über dein eigenes Microsoft-Konto – nur, was dir in M365 freigegeben ist. `
+      + "Deine Gespräche werden nicht gespeichert. Was darüber hinaus gilt, entscheidest nur du:";
+    elTafelInhalt.append(einleitung);
+    const meldung = document.createElement("div"); meldung.className = "wann";
+    for(const [feld, titel, erklaerung] of [
+      ["handeln", "Aura darf für mich handeln",
+        "Mails, Teams-Nachrichten und Erinnerungen über dein Konto vorbereiten. Mails gehen immer erst hier zur Freigabe; Teams und Erinnerungen nur, wenn du es im Gespräch ausdrücklich sagst."],
+      ["muster_erlaubt", "Meine Mails an Tobias dürfen ausgewertet werden",
+        "Tobias' Aura wertet eingehende Mails nach Kommunikationsmustern aus. Ausgeschaltet bleiben deine Mails dabei außen vor, und frühere Befunde über dich sind ausgeblendet."],
+    ]){
+      const l = document.createElement("label"); l.className = "schalter";
+      const c = document.createElement("input"); c.type = "checkbox"; c.checked = !!ich?.[feld];
+      const t = document.createElement("div");
+      const w = document.createElement("div"); w.className = "was"; w.textContent = titel;
+      const e = document.createElement("div"); e.className = "wann"; e.textContent = erklaerung;
+      t.append(w, e); l.append(c, t);
+      c.addEventListener("change", async () => {
+        c.disabled = true;
+        try{
+          const r = await anm.rufen("aura", {aktion: "einstellungen", [feld]: c.checked});
+          Object.assign(ich, await r.json());
+          meldung.textContent = "Gespeichert.";
+        }catch(err){
+          c.checked = !c.checked;
+          meldung.textContent = `Nicht gespeichert: ${err.message}`;
+        }
+        c.disabled = false;
+      });
+      elTafelInhalt.append(l);
+    }
+    elTafelInhalt.append(meldung);
+  }
+  anm.beiAenderung(ichLaden);
+  ichLaden();
 
   // Rückkehr von LinkedIn/Meta (nur Webseite)
   if(rueck.has("konto")){

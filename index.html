@@ -75,6 +75,12 @@
   input:focus{border-color:var(--akt)}
   button{cursor:pointer;background:rgba(78,107,128,.35);font-weight:500}
   button:disabled{opacity:.5;cursor:default}
+  .oder{font-size:13px;color:var(--leise);text-align:center;letter-spacing:.04em;margin-top:4px}
+  #microsoft{background:rgba(78,107,128,.55)}
+  .schalter{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid rgba(255,255,255,.1);cursor:pointer}
+  .schalter input{width:22px;height:22px;margin-top:2px;flex:none;accent-color:#4E6B80}
+  .schalter .was{font-weight:600;margin-bottom:4px}
+  .schalter .wann{font-size:13.5px;color:var(--leise);line-height:1.45}
   .meldung{min-height:1.3em;font-size:14px;color:var(--fehler);text-align:center}
   .abmelden{background:none;border:none;padding:4px;font-size:14px;color:var(--leise);text-decoration:underline;cursor:pointer}
 
@@ -130,6 +136,8 @@
   <div class="wort" id="wort">bereit</div>
 
   <form id="anmeldung" autocomplete="on">
+    <button id="microsoft" type="button">Mit Microsoft anmelden</button>
+    <div class="oder">oder mit E-Mail und Passwort</div>
     <input id="email" type="email" placeholder="E-Mail" autocomplete="username" autocapitalize="off" required>
     <input id="passwort" type="password" placeholder="Passwort" autocomplete="current-password" required>
     <button id="los" type="submit">Anmelden</button>
