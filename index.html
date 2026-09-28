@@ -95,10 +95,34 @@
   .posten .knoepfe button{padding:7px 14px;font-size:14px}
   .posten .fehler{color:var(--fehler);font-size:13px;margin-bottom:6px}
   .ablehnen{background:rgba(255,255,255,.05)!important}
+  /* Mitschrift rechts: fortlaufend, neue Zeilen unten, ältere rollen nach
+     oben aus dem Kasten. Nur auf breiten Fenstern; schmal bleibt der Text
+     unter dem Ball. */
+  .protokoll{display:none}
+  @media (min-width:900px){
+    .protokoll{
+      display:flex;flex-direction:column;gap:12px;position:fixed;z-index:2;
+      right:clamp(18px,3vw,48px);top:50%;transform:translateY(-10%);
+      width:min(24vw,380px);height:min(46vh,480px);overflow-y:auto;overscroll-behavior:contain;
+      padding:16px 18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(5,7,12,.72);
+      font-size:15px;line-height:1.5;user-select:text;-webkit-user-select:text;scrollbar-width:thin;
+      mask-image:linear-gradient(to bottom,transparent 0,#000 28px);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 28px);
+    }
+    .protokoll:empty{display:none}
+    .protokoll > :first-child{margin-top:auto}
+    .protokoll .du{color:var(--leise)}
+    .protokoll .aura{color:var(--text)}
+    .protokoll .wer{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--akt);margin-bottom:2px}
+    body.abgemeldet .protokoll{display:none}
+    /* Der Wortlaut steht rechts; mittig nur Zustand und kurze Hinweise */
+    .gehoert{visibility:hidden}
+    .zeile.antwort{visibility:hidden}
+  }
 </style>
 </head>
 <body class="abgemeldet">
 <canvas id="orb"></canvas>
+<div class="protokoll" id="protokoll" aria-live="polite"></div>
 <div class="eigentum">Aura · Eigentum der TR-Management</div>
 <div class="rahmen">
   <div class="logo">AURA</div>

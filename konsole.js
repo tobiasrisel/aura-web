@@ -23,6 +23,28 @@
   const elWort  = document.getElementById("wort");
   const elZeile = document.getElementById("zeile");
   const elHoert = document.getElementById("gehoert");
+  const elProtokoll = document.getElementById("protokoll");
+
+  // Mitschrift (nur Web-Fassung, rechts): neue Zeilen unten. Wer gerade
+  // nach oben gescrollt hat, wird nicht nach unten gerissen.
+  function mitschreiben(rolle, text){
+    if(!elProtokoll || !text) return;
+    const unten = elProtokoll.scrollHeight - elProtokoll.scrollTop - elProtokoll.clientHeight < 40;
+    const eintrag = document.createElement("div");
+    eintrag.className = rolle;
+    const wer = document.createElement("span");
+    wer.className = "wer";
+    wer.textContent = rolle === "du" ? "Du" : "Aura";
+    eintrag.append(wer, text);
+    elProtokoll.append(eintrag);
+    while(elProtokoll.children.length > 200) elProtokoll.firstElementChild.remove();
+    if(unten) elProtokoll.scrollTop = elProtokoll.scrollHeight;
+  }
+  // Antworten stehen auf breiten Fenstern nur rechts; mittig bleiben Hinweise.
+  const zeigen = (text, antwort = false) => {
+    elZeile.textContent = text;
+    elZeile.classList.toggle("antwort", antwort && !!elProtokoll);
+  };
 
   const tauri  = window.__TAURI__;
   const rufen  = tauri?.core?.invoke;
@@ -67,7 +89,7 @@
     if(!befehl) return false;
     const rueck = orb.befolgen(befehl);
     document.body.classList.toggle("partikel", orb.imPartikelmodus());
-    if(rueck) elZeile.textContent = rueck;
+    if(rueck) zeigen(rueck);
     rufen?.("partikel_melden", {befehl: JSON.stringify(befehl)});
     zustand("ruhe");
     return true;
@@ -160,7 +182,7 @@
     if(!frage) return;
     const meiner = lauf;
     zustand("denken");
-    elZeile.textContent = "…";
+    zeigen("…");
     try{
       let ergebnis = await (await anm.rufen("aura", {
         aktion: "antwort", frage, verlauf: verlauf.slice(-12), faehigkeiten: FAEHIGKEITEN,
@@ -169,7 +191,7 @@
       // Ergebnisse zurueck, bis eine Antwort kommt.
       while(ergebnis.lokal){
         if(meiner !== lauf) return;
-        elZeile.textContent = "Ich räume auf …";
+        zeigen("Ich räume auf …");
         const ergebnisse = [];
         for(const a of ergebnis.lokal.aufrufe){
           try{
@@ -184,14 +206,15 @@
       freigabenLaden();
       if(meiner !== lauf) return;
       verlauf.push({rolle: "du", text: frage}, {rolle: "aura", text});
-      elZeile.textContent = text;
+      zeigen(text, true);
+      mitschreiben("aura", text);
       await sprechen(text, meiner);
     }catch(e){
       if(meiner !== lauf) return;
       console.error("Antwort:", e);
-      elZeile.textContent = e.status === 401 ? "Bitte melde dich an."
+      zeigen(e.status === 401 ? "Bitte melde dich an."
         : e.status === 403 ? "Diese Adresse ist für Aura nicht freigegeben."
-        : `Das hat nicht geklappt: ${e.message}`;
+        : `Das hat nicht geklappt: ${e.message}`);
       zustand("ruhe");
     }
   }
@@ -233,7 +256,7 @@
     if(!anm.angemeldet()){ ansicht(); return; }
     if(aufnahme) return;
     if(!window.MediaRecorder || !navigator.mediaDevices?.getUserMedia){
-      elZeile.textContent = "Aufnahme steht hier nicht bereit.";
+      zeigen("Aufnahme steht hier nicht bereit.");
       return;
     }
 
@@ -242,9 +265,9 @@
       strom = await navigator.mediaDevices.getUserMedia(
         {audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true}});
     }catch(e){
-      elZeile.textContent = e.name === "NotAllowedError"
+      zeigen(e.name === "NotAllowedError"
         ? "Kein Zugriff aufs Mikrofon – bitte in den Systemeinstellungen erlauben."
-        : `Mikrofon nicht verfügbar (${e.name}).`;
+        : `Mikrofon nicht verfügbar (${e.name}).`);
       zustand("ruhe");
       return;
     }
@@ -285,28 +308,29 @@
       if(eigene.abbruch || meiner !== lauf){ zustand("ruhe"); return; }
       if(!gesprochen){
         if(orb.imPartikelmodus() && offen){ hoeren(true); return; }
-        elZeile.textContent = weiter ? "Ich bin da, wenn du noch etwas hast." : "Ich habe nichts gehört.";
+        zeigen(weiter ? "Ich bin da, wenn du noch etwas hast." : "Ich habe nichts gehört.");
         zustand("ruhe");
         return;
       }
       zustand("denken");
-      elZeile.textContent = "…";
+      zeigen("…");
       try{
         const blob = new Blob(teile, {type: (rec.mimeType || format || "audio/mp4").split(";")[0]});
         const antwort = await anm.rufen("sprache-hoeren", blob);
         const {text} = await antwort.json();
         if(meiner !== lauf) return;
-        if(!text){ elZeile.textContent = "Das habe ich nicht verstanden."; zustand("ruhe"); return; }
+        if(!text){ zeigen("Das habe ich nicht verstanden."); zustand("ruhe"); return; }
         elHoert.textContent = text;
+        mitschreiben("du", text);
         if(partikel(text)){
           if(orb.imPartikelmodus() && offen && meiner === lauf) hoeren(true);
           return;
         }
-        if(orb.imPartikelmodus()){ elZeile.textContent = "Das habe ich nicht verstanden."; hoeren(true); return; }
+        if(orb.imPartikelmodus()){ zeigen("Das habe ich nicht verstanden."); hoeren(true); return; }
         antworten(text);
       }catch(e){
         console.error("Hören:", e);
-        elZeile.textContent = `Spracherkennung: ${e.message}`;
+        zeigen(`Spracherkennung: ${e.message}`);
         zustand("ruhe");
       }
     };
@@ -314,7 +338,7 @@
     rec.start(250);
     zustand("hoeren");
     elHoert.textContent = "";
-    elZeile.textContent = "Ich höre.";
+    zeigen("Ich höre.");
 
     // Stille erkennen. setTimeout statt requestAnimationFrame: läuft auch,
     // wenn das Fenster gerade nicht gezeichnet wird.
@@ -365,7 +389,7 @@
       // Mac: gleich zuhören. Browser/iPad: auf den Tipp warten – erst der
       // schaltet dort den Ton frei.
       if(fenster) hoeren();
-      else elZeile.textContent = "Tippe auf den Ball und sprich.";
+      else zeigen("Tippe auf den Ball und sprich.");
     }catch(err){
       elMeldung.textContent = err.status === 400
         ? "E-Mail oder Passwort stimmen nicht."
@@ -378,6 +402,7 @@
   document.getElementById("abmelden").addEventListener("click", () => {
     beenden();
     verlauf.length = 0;
+    elProtokoll?.replaceChildren();
     anm.abmelden();
   });
 
@@ -394,7 +419,7 @@
   async function anmeldungOeffnen(url, name){
     if(rufen){
       await rufen("anmeldung_oeffnen", {url});
-      elZeile.textContent = `Melde dich im Fenster bei ${name} an.`;
+      zeigen(`Melde dich im Fenster bei ${name} an.`);
     }else{
       location.href = url;
     }
@@ -415,15 +440,15 @@
       if(!url) throw new Error(fehler);
       await anmeldungOeffnen(url, "Microsoft");
     }catch(e){
-      elZeile.textContent = `Microsoft verbinden: ${e.message}`;
+      zeigen(`Microsoft verbinden: ${e.message}`);
     }
   });
   // Rückkehr von Microsoft (nur Webseite)
   const rueck = new URLSearchParams(location.search);
   if(rueck.has("m365")){
-    elZeile.textContent = rueck.get("m365") === "verbunden"
+    zeigen(rueck.get("m365") === "verbunden"
       ? "Microsoft 365 ist verbunden. Frag mich nach Mails, Terminen oder Dateien."
-      : `Microsoft-Verbindung fehlgeschlagen: ${rueck.get("grund") ?? "unbekannt"}`;
+      : `Microsoft-Verbindung fehlgeschlagen: ${rueck.get("grund") ?? "unbekannt"}`);
     history.replaceState(null, "", location.pathname);
   }
   anm.beiAenderung(m365Stand);
@@ -498,7 +523,7 @@
           const r = await anm.rufen("aura", {aktion: "entscheiden", id: f.id, entscheidung});
           const d = await r.json();
           if(!r.ok) throw new Error(d.fehler ?? r.status);
-          elZeile.textContent = entscheidung === "freigeben" ? `Erledigt: ${f.wirkung}.` : "Abgelehnt.";
+          zeigen(entscheidung === "freigeben" ? `Erledigt: ${f.wirkung}.` : "Abgelehnt.");
         }catch(e){
           fehler.textContent = String(e.message ?? e);
         }
@@ -549,15 +574,15 @@
   // Rückkehr von LinkedIn/Meta (nur Webseite)
   if(rueck.has("konto")){
     const name = rueck.get("konto") === "meta" ? "Facebook/Instagram" : "LinkedIn";
-    elZeile.textContent = rueck.get("ergebnis") === "verbunden"
-      ? `${name} ist verbunden.` : `${name}-Verbindung fehlgeschlagen: ${rueck.get("grund") ?? "unbekannt"}`;
+    zeigen(rueck.get("ergebnis") === "verbunden"
+      ? `${name} ist verbunden.` : `${name}-Verbindung fehlgeschlagen: ${rueck.get("grund") ?? "unbekannt"}`);
     history.replaceState(null, "", location.pathname);
   }
   // Mac-App: Anmeldefenster geschlossen → Stand neu holen.
   horchen?.("aura://angemeldet", async () => {
     await m365Stand();
     if(!elTafel.hidden && elTafel.dataset.art === "konten") kontenZeigen();
-    elZeile.textContent = "Anmeldung beendet – der Stand ist aktualisiert.";
+    zeigen("Anmeldung beendet – der Stand ist aktualisiert.");
   });
   anm.beiAenderung(freigabenLaden);
   freigabenLaden();
@@ -619,5 +644,5 @@
   zustand("ruhe");
   ansicht();
   // Hinweis der App beim Start (etwa: ⌥ Leertaste gehört einer anderen App).
-  rufen?.("hinweis_abholen").then(h => { if(h) elZeile.textContent = h; }).catch(() => {});
+  rufen?.("hinweis_abholen").then(h => { if(h) zeigen(h); }).catch(() => {});
 })();
