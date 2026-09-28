@@ -59,6 +59,7 @@
   .zeile{min-height:2.6em;max-width:36ch;text-align:center;font-size:clamp(18px,2.4vw,26px);line-height:1.45}
   .gehoert{min-height:1.3em;font-size:clamp(15px,1.8vw,19px);color:var(--leise);text-align:center;max-width:40ch}
   .hilfe{font-size:14px;color:var(--leise);letter-spacing:.03em;text-align:center}
+  .eigentum{position:fixed;left:0;right:0;bottom:10px;text-align:center;font-size:11.5px;letter-spacing:.08em;color:var(--leise);opacity:.55;pointer-events:none;z-index:1}
 
   /* Anmeldung */
   form{display:none;flex-direction:column;gap:12px;width:min(340px,86vw)}
@@ -98,6 +99,7 @@
 </head>
 <body class="abgemeldet">
 <canvas id="orb"></canvas>
+<div class="eigentum">Aura · Eigentum der TR-Management</div>
 <div class="rahmen">
   <div class="logo">AURA</div>
   <div class="orbplatz" id="orbplatz" aria-label="Aura – tippen zum Sprechen" role="button"></div>

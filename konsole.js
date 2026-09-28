@@ -45,11 +45,10 @@
     else{ orb.anhalten(); beenden(); }   // verborgen: nicht weiter hören oder sprechen
   }
   fenster?.isVisible?.().then(sichtbar).catch(() => {});
-  // Im Browser (iPad): Tab oder App im Hintergrund → Gespräch beenden.
-  // orb.js hält bei verborgener Seite nur an; weiter geht es hier.
+  // Im Browser: Tab oder Fenster im Hintergrund → das Gespräch läuft weiter
+  // (Wunsch Tobias, 28.09.). orb.js hält nur das Zeichnen an; weiter geht es hier.
   if(!fenster) document.addEventListener("visibilitychange", () => {
-    if(document.hidden) beenden();
-    else orb.weiter();
+    if(!document.hidden) orb.weiter();
   });
   horchen?.("aura://sichtbar", ev => sichtbar(ev.payload));
 
@@ -591,6 +590,13 @@
     else{ beenden(); rufen?.("overlay_schliessen"); }
   }
   horchen?.("aura://taste", taste);
+
+  // Klick auf die kleine Kugel (Mac-App): zuhören oder beenden, das Fenster
+  // bleibt, wo es ist.
+  horchen?.("aura://kugel", () => {
+    if(orb.jetzt() === "ruhe" && !aufnahme) hoeren();
+    else beenden();
+  });
 
   // Tipp auf den Ball (iPad, Browser): wie ⌥ Leertaste – und schaltet den
   // Ton frei, den Safari sonst verweigert.
