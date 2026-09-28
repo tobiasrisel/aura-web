@@ -378,6 +378,12 @@
     }
   }
 
+  // In der Mac-App nicht: Microsoft leitet zurück auf die Webseite, die App
+  // zeigt aber ihre mitgebrachte Seite. Dort meldet sich Tobias mit Passwort an.
+  if(rufen){
+    document.getElementById("microsoft")?.remove();
+    document.querySelector(".oder")?.remove();
+  }
   // Anmeldung mit Microsoft: hin zu Microsoft, zurück mit #anmeldung=…
   document.getElementById("microsoft")?.addEventListener("click", async (e) => {
     e.stopPropagation();
