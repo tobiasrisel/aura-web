@@ -182,6 +182,65 @@
     return f;
   }
 
+  /* Musikmodus: Schallwelle aus dem laufenden Audiosignal (AnalyserNode).
+     Die Huellkurve laeuft von rechts nach links durch, jede Spalte ist ein
+     Moment; ueber die Breite ein Farbverlauf wie ein Regenbogen, bei
+     Spitzen springen einzelne Funken ueber und unter die Welle. */
+  function musikFigur(analyse) {
+    const SP = 200, XB = 1.9;                   // Spalten, halbe Breite
+    const huelle = new Float32Array(SP), spitze = new Float32Array(SP);
+    const zeitDaten = new Float32Array(analyse.fftSize);
+    let letzte = null, boden = 0.02, oben = 0.2;
+    const farben = new Float32Array(SP*3);
+    for (let c = 0; c < SP; c++) {               // Tuerkis → Gruen → Gelb → Rot → Magenta → Violett
+      const h = 175 - c/(SP - 1)*(175 + 95);     // Farbton in Grad, 175 … -95
+      const [r, g, b] = hsl(((h % 360) + 360) % 360, 0.9, 0.58);
+      farben[c*3] = r; farben[c*3+1] = g; farben[c*3+2] = b;
+    }
+    function hsl(h, s, l) {
+      const k = n => (n + h/30) % 12, a = s*Math.min(l, 1 - l);
+      const f = n => l - a*Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+      return [f(0)*255, f(8)*255, f(4)*255];
+    }
+    return {
+      ax: XB, groesse: 0.78, schnell: true, musik: true,
+      takt(t) {
+        // etwa 50 Spalten je Sekunde, unabhaengig von der Bildrate
+        if (letzte === null || t - letzte > 0.5) letzte = t - 1/50;
+        const schritte = Math.min(SP, Math.floor((t - letzte)*50));
+        if (schritte < 1) return;
+        letzte += schritte/50;
+        analyse.getFloatTimeDomainData(zeitDaten);
+        let q = 0, max = 0;
+        for (let i = 0; i < zeitDaten.length; i++) { const v = zeitDaten[i]; q += v*v; if (Math.abs(v) > max) max = Math.abs(v); }
+        const rms = Math.sqrt(q/zeitDaten.length);
+        // Selbst einpegeln: leise Raeume und laute Clubs fuellen beide die Hoehe
+        boden += (Math.min(boden, rms) - boden)*0.5 + 0.00002;
+        oben = Math.max(oben*0.997, rms, 0.03);
+        const wert = Math.max(0, Math.min(1, (rms - boden)/(oben - boden + 1e-6)));
+        const sp = Math.min(1, max/(oben*2.2));
+        huelle.copyWithin(0, schritte); spitze.copyWithin(0, schritte);
+        for (let k = SP - schritte; k < SP; k++) { huelle[k] = wert; spitze[k] = sp; }
+      },
+      ziel(j, n, t, o) {
+        const c = j % SP, a = huelle[c];
+        const u = zufall(j, 3);
+        o[0] = (c/(SP - 1)*2 - 1)*XB;
+        if (u < 0.9) {                           // die Welle selbst, zur Mitte dichter
+          const v = zufall(j, 4)*2 - 1;
+          o[1] = Math.sign(v)*Math.pow(Math.abs(v), 1.4)*(0.015 + a*0.8)*(0.85 + 0.3*Math.sin(t*9 + j));
+          o[3] = 0.55 + a*0.6;
+        } else {                                  // Funken ueber und unter der Welle
+          const hoch = spitze[c] > 0.55 ? 0.62 + zufall(j, 5)*0.35 : a*0.6;
+          o[1] = (zufall(j, 6) < 0.5 ? -1 : 1)*hoch*(0.4 + a);
+          o[3] = spitze[c] > 0.55 ? 1 : 0.3;
+        }
+        o[2] = 0;
+      },
+      farbe(j, F) { const c = (j % SP)*3; F[0] = farben[c]; F[1] = farben[c+1]; F[2] = farben[c+2]; }
+    };
+  }
+
   const FIGUREN = {
     herz: {
       name: "Herz",
@@ -512,7 +571,7 @@
     let laeuft = false, bildNr = 0;
     let modus = false, figur = null, staub = 1;
     const wellen = [];
-    const O = new Float32Array(4);
+    const O = new Float32Array(4), F = new Float32Array(3);
 
     /* --- Masse --- */
     let W = 1, H = 1, dpr = 1;
@@ -590,7 +649,7 @@
           nz = rauschen(Math.cos(t)*1.4, Math.sin(t)*1.4, p*0.8, zeit*0.8);
         }
 
-        let X = ox, Y = oy, farbPar = nz, groesse = 1;
+        let X = ox, Y = oy, farbPar = nz, groesse = 1, eForm = 0;
         if (form[i]) {
           w[i] += (ziel - w[i])*rate[i];
           if (w[i] > 0.002 && figur) {
@@ -599,12 +658,14 @@
             const gx = mx + O[0]*fs*per, gy = my + O[1]*fs*per;
             if (w[i] < 0.02) { fx[i] = gx; fy[i] = gy; fz[i] = O[2]; fb[i] = O[3]; }
             else {
-              fx[i] += (gx - fx[i])*folg[i]; fy[i] += (gy - fy[i])*folg[i];
-              fz[i] += (O[2] - fz[i])*folg[i]; fb[i] += (O[3] - fb[i])*folg[i];
+              const fo = figur.schnell ? 0.45 : folg[i];
+              fx[i] += (gx - fx[i])*fo; fy[i] += (gy - fy[i])*fo;
+              fz[i] += (O[2] - fz[i])*fo; fb[i] += (O[3] - fb[i])*fo;
             }
           }
           if (w[i] > 0.002) {
             const e = w[i]*w[i]*(3 - 2*w[i]);
+            eForm = e;
             const dx = fx[i] - ox, dy = fy[i] - oy, bo = Math.sin(Math.PI*e)*wirbel[i];
             X = ox + dx*e - dy*bo;
             Y = oy + dy*e + dx*bo;
@@ -628,9 +689,12 @@
         const o = anz*7;
         daten[o]   = X*dpr; daten[o+1] = Y*dpr;
         daten[o+2] = gr[i]*groesse*(1 + auf*0.35)*dpr*3.2;
-        daten[o+3] = (A[0] + (B[0] - A[0])*c)/255;
-        daten[o+4] = (A[1] + (B[1] - A[1])*c)/255;
-        daten[o+5] = (A[2] + (B[2] - A[2])*c)/255;
+        let r = A[0] + (B[0] - A[0])*c, g = A[1] + (B[1] - A[1])*c, bl = A[2] + (B[2] - A[2])*c;
+        if (eForm > 0 && figur && figur.farbe) {
+          figur.farbe(fj[i], F);
+          r += (F[0] - r)*eForm; g += (F[1] - g)*eForm; bl += (F[2] - bl)*eForm;
+        }
+        daten[o+3] = r/255; daten[o+4] = g/255; daten[o+5] = bl/255;
         daten[o+6] = alpha;
         anz++;
       }
@@ -764,7 +828,7 @@
         if (neu !== "sprechen") extern = null;
         return zustand;
       },
-      wort() { return modus ? "partikelmodus" : ZUSTAENDE[zustand].wort; },
+      wort() { return figur && figur.musik ? "musikmodus" : modus ? "partikelmodus" : ZUSTAENDE[zustand].wort; },
       jetzt() { return zustand; },
       pegel(v) { extern = (v === null || v === undefined) ? null : Math.max(0, Math.min(1, v)); },
       mikro,
@@ -778,6 +842,12 @@
         return modus;
       },
       imPartikelmodus() { return modus; },
+      /* Musikmodus: analyse = AnalyserNode des laufenden Signals, null beendet */
+      musik(analyse) {
+        if (analyse) { modus = true; figur = musikFigur(analyse); }
+        else if (figur && figur.musik) { modus = false; figur = null; }
+      },
+      imMusikmodus() { return !!(figur && figur.musik); },
       zeige(spec) { if (!modus) modus = true; return zeige(spec); },
 
       /* Befehl aus AuraOrb.deuten() ausfuehren; liefert eine kurze Rueckmeldung */
@@ -813,6 +883,7 @@
     // „Partikelmodus“ startet, „Normalmodus“ beendet (Vorgabe Tobias, 29.09.).
     // Die Erkennung schreibt auch „Normal Modus“ – darum ohne Leerzeichen geprüft.
     if (/normalmodus/.test(kompakt))                                return {befehl: "aus"};
+    if (/musikmodus/.test(kompakt))                                 return {befehl: "musik"};
     if (/partikelmodus(aus|ab|beenden|stopp|stop)/.test(kompakt))   return {befehl: "aus"};
     if (/partikelmodus/.test(kompakt))                              return {befehl: "an"};
 

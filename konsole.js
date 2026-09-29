@@ -66,7 +66,7 @@
   function sichtbar(s){
     offen = !!s;
     if(offen) orb.weiter();
-    else{ orb.anhalten(); beenden(); }   // verborgen: nicht weiter hören oder sprechen
+    else{ orb.anhalten(); beenden(); musikBeenden(); }   // verborgen: nicht weiter hören oder sprechen
   }
   fenster?.isVisible?.().then(sichtbar).catch(() => {});
   // Im Browser: Tab oder Fenster im Hintergrund → das Gespräch läuft weiter
@@ -94,6 +94,8 @@
     const befehl = AuraOrb.deuten(satz, orb.imPartikelmodus());
     if(!befehl) return false;
     formNr++;   // eine noch laufende Formanfrage gilt nicht mehr
+    if(befehl.befehl === "musik"){ musikStarten(); return true; }
+    if(befehl.befehl === "aus") musikBeenden();
     if(befehl.form){ formHolen(befehl.form); return true; }
     const rueck = orb.befolgen(befehl);
     document.body.classList.toggle("partikel", orb.imPartikelmodus());
@@ -102,6 +104,49 @@
     zustand("ruhe");
     return true;
   }
+
+  /* ---------- Musikmodus ----------
+   * „Musikmodus“ (gesprochen oder im Menü): das Mikrofon bleibt offen, der
+   * Ball zeigt die laufende Musik als Schallwelle (orb.js, musikFigur).
+   * Nichts davon geht an die Spracherkennung. Ohne Rauschunterdrückung und
+   * automatische Pegelanpassung – die würden die Musik verbiegen. Ende: Tipp
+   * auf den Ball, Escape, Menü oder ⌥ Leertaste.
+   */
+  let musikStrom = null, musikAc = null;
+  const elMusikKnopf = document.getElementById("musik-knopf");
+  async function musikStarten(){
+    beenden();
+    if(orb.imMusikmodus()) return;
+    try{
+      musikStrom = await navigator.mediaDevices.getUserMedia({audio: {
+        echoCancellation: false, noiseSuppression: false, autoGainControl: false}});
+      musikAc = new (window.AudioContext || window.webkitAudioContext)();
+      if(musikAc.state === "suspended") await musikAc.resume().catch(() => {});
+      const analyse = musikAc.createAnalyser();
+      analyse.fftSize = 2048;
+      analyse.smoothingTimeConstant = 0.5;
+      musikAc.createMediaStreamSource(musikStrom).connect(analyse);
+      orb.musik(analyse);
+      document.body.classList.add("musik");
+      zeigen("");
+      wortZeigen();
+      if(elMusikKnopf) elMusikKnopf.textContent = "Musikmodus beenden";
+    }catch(e){
+      musikBeenden();
+      zeigen(`Musikmodus: kein Mikrofon (${e.message}).`);
+    }
+  }
+  function musikBeenden(){
+    if(!musikStrom && !orb.imMusikmodus()) return;
+    orb.musik(null);
+    musikStrom?.getTracks().forEach(t => t.stop());
+    musikAc?.close().catch(() => {});
+    musikStrom = musikAc = null;
+    document.body.classList.remove("musik");
+    wortZeigen();
+    if(elMusikKnopf) elMusikKnopf.textContent = "Musikmodus";
+  }
+  elMusikKnopf?.addEventListener("click", () => orb.imMusikmodus() ? musikBeenden() : musikStarten());
 
   // Frei beschriebene Form: der Server zeichnet sie (aura, partikelform),
   // dann formt der Ball sie. Scheitert das, steht das Wort da.
@@ -356,7 +401,7 @@
         elHoert.textContent = text;
         mitschreiben("du", text);
         if(partikel(text)){
-          if(orb.imPartikelmodus() && offen && meiner === lauf) hoeren(true);
+          if(orb.imPartikelmodus() && !orb.imMusikmodus() && offen && meiner === lauf) hoeren(true);
           return;
         }
         if(orb.imPartikelmodus()){ zeigen("Das habe ich nicht verstanden."); hoeren(true); return; }
@@ -777,6 +822,7 @@
     if(e.key === "f" && e.metaKey && e.ctrlKey){ e.preventDefault(); vollbild(!imVollbild); return; }
     if(e.key === "Escape"){
       if(!elMenue.hidden){ menue(false); return; }
+      if(orb.imMusikmodus()){ musikBeenden(); return; }
       beenden();
       schliessen();
     }
@@ -784,6 +830,7 @@
 
   // ⌥ Leertaste bei offenem Fenster: in Ruhe → zuhören, sonst abbrechen und schließen.
   function taste(){
+    if(orb.imMusikmodus()){ musikBeenden(); return; }
     if(orb.jetzt() === "ruhe" && !aufnahme) hoeren();
     else{ beenden(); rufen?.("overlay_schliessen"); }
   }
@@ -818,7 +865,8 @@
   (elPlatz || document.getElementById("orb")).addEventListener("click", () => {
     if(!anm.angemeldet()) return;
     entsperren();
-    if(orb.jetzt() === "ruhe" && !aufnahme) hoeren();
+    if(orb.imMusikmodus()) musikBeenden();
+    else if(orb.jetzt() === "ruhe" && !aufnahme) hoeren();
     else beenden();
   });
 
