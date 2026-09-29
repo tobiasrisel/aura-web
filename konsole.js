@@ -76,9 +76,13 @@
   });
   horchen?.("aura://sichtbar", ev => sichtbar(ev.payload));
 
+  // Während Aura spricht, steht oben kein Wort – man hört es ja.
+  function wortZeigen(){
+    elWort.textContent = orb.jetzt() === "sprechen" && !orb.imPartikelmodus() ? "" : orb.wort();
+  }
   function zustand(z){
     orb.zustand(z);
-    elWort.textContent = orb.wort();
+    wortZeigen();
     rufen?.("zustand_melden", {zustand: z});
   }
 
@@ -337,7 +341,7 @@
       if(eigene.abbruch || meiner !== lauf){ zustand("ruhe"); return; }
       if(!gesprochen){
         if(orb.imPartikelmodus() && offen){ hoeren(true); return; }
-        zeigen(weiter ? "Ich bin da, wenn du noch etwas hast." : "Ich habe nichts gehört.");
+        zeigen(weiter ? "" : "Ich habe nichts gehört.");
         zustand("ruhe");
         return;
       }
@@ -403,7 +407,7 @@
       elWort.textContent = "anmelden";
       setTimeout(() => (elEmail.value ? elPasswort : elEmail).focus(), 50);
     }else{
-      elWort.textContent = orb.wort();
+      wortZeigen();
     }
   }
 
@@ -717,6 +721,32 @@
     else if(mitHuelle) fetch(HUELLE + "/verbergen", {method: "POST"}).catch(() => {});
   }
 
+  /* Menü oben links: Text, Vollbild, Konten, Abmelden, Eigentum. Ein Klick
+   * auf einen Punkt, daneben oder Escape schließt es. */
+  const elMenue = document.getElementById("menue");
+  const elMenueKnopf = document.getElementById("menue-knopf");
+  function menue(auf){
+    elMenue.hidden = !auf;
+    elMenueKnopf.setAttribute("aria-expanded", auf ? "true" : "false");
+  }
+  elMenueKnopf.addEventListener("click", e => { e.stopPropagation(); menue(elMenue.hidden); });
+  elMenue.addEventListener("click", e => { if(e.target.closest("button")) menue(false); });
+  document.addEventListener("click", e => {
+    if(!elMenue.hidden && !e.target.closest("#menue, #menue-knopf")) menue(false);
+  });
+
+  /* Textanzeige (Mitschrift, Gehörtes, Antwort) ein- und ausklappen – über
+   * dem Kasten rechts oder im Menü. Die Wahl bleibt gespeichert. */
+  const textKnoepfe = [document.getElementById("protokoll-knopf"), document.getElementById("text-knopf")];
+  function textAnzeige(an){
+    document.body.classList.toggle("ohne-text", !an);
+    for(const k of textKnoepfe) if(k) k.textContent = an ? "Text ausblenden" : "Text einblenden";
+    try{ localStorage.setItem("aura.ohneText", an ? "" : "1"); }catch{}
+  }
+  for(const k of textKnoepfe) k?.addEventListener("click", () =>
+    textAnzeige(document.body.classList.contains("ohne-text")));
+  try{ if(localStorage.getItem("aura.ohneText")) textAnzeige(false); }catch{}
+
   /* Vollbild: sonst ein normales Fenster, auf Wunsch dunkles Vollbild –
    * Knopf „Vollbild“ oder ⌃⌘F. Mac-App über lib.rs (vollbild_setzen),
    * Browser und Chrome-App über die Fullscreen-API. Die Mac-App merkt sich
@@ -744,6 +774,7 @@
   document.addEventListener("keydown", e => {
     if(e.key === "f" && e.metaKey && e.ctrlKey){ e.preventDefault(); vollbild(!imVollbild); return; }
     if(e.key === "Escape"){
+      if(!elMenue.hidden){ menue(false); return; }
       beenden();
       schliessen();
     }

@@ -41,10 +41,13 @@
   form,.wort,.gespraech > *{position:relative;z-index:1}
   .logo{z-index:1}
   .wort,.zeile,.gehoert{pointer-events:none;text-shadow:0 1px 12px rgba(5,7,12,.9)}
-  .logo{
-    position:absolute;top:clamp(16px,3vh,36px);right:clamp(18px,4vw,48px);
-    font-size:clamp(26px,4.5vw,56px);font-weight:600;letter-spacing:.3em;margin-right:-.3em;
+  /* Oben rechts: Logo, darunter mittig das Zustandswort, halb durchsichtig */
+  .kopf{
+    position:absolute;top:clamp(16px,3vh,36px);right:clamp(18px,4vw,48px);z-index:1;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
   }
+  .logo{font-size:clamp(26px,4.5vw,56px);font-weight:600;letter-spacing:.3em;margin-right:-.3em}
+  .kopf .wort{opacity:.5;margin-right:-.22em;min-height:1.2em}
   /* Der Ball sitzt mittig im ganzen Fenster, halb so groß wie die
      Fensterhöhe; Text liegt unten */
   .orbplatz{
@@ -59,7 +62,33 @@
   .zeile{min-height:2.6em;max-width:36ch;text-align:center;font-size:clamp(18px,2.4vw,26px);line-height:1.45}
   .gehoert{min-height:1.3em;font-size:clamp(15px,1.8vw,19px);color:var(--leise);text-align:center;max-width:40ch}
   .hilfe{font-size:14px;color:var(--leise);letter-spacing:.03em;text-align:center}
-  .eigentum{position:fixed;left:0;right:0;bottom:10px;text-align:center;font-size:11.5px;letter-spacing:.08em;color:var(--leise);opacity:.55;pointer-events:none;z-index:1}
+  /* Menü: kleiner Hamburger oben links */
+  .menue-knopf{
+    position:fixed;z-index:10;top:clamp(16px,3vh,36px);left:clamp(18px,4vw,48px);
+    width:40px;height:40px;padding:10px 9px;border-radius:10px;
+    display:flex;flex-direction:column;justify-content:space-between;
+    background:none;border:1px solid transparent;
+  }
+  .menue-knopf:hover,.menue-knopf[aria-expanded="true"]{border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.04)}
+  .menue-knopf span{display:block;height:2px;border-radius:1px;background:var(--leise)}
+  .menue{
+    position:fixed;z-index:10;top:calc(clamp(16px,3vh,36px) + 48px);left:clamp(18px,4vw,48px);
+    min-width:230px;padding:8px;border-radius:14px;
+    background:#0A0D16;border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 40px rgba(0,0,0,.5);
+    display:flex;flex-direction:column;
+  }
+  .menue[hidden]{display:none}
+  .menue button{
+    text-align:left;background:none;border:none;border-radius:8px;padding:10px 12px;
+    font-size:15px;font-weight:400;color:var(--text);
+  }
+  .menue button:hover{background:rgba(255,255,255,.06)}
+  body.abgemeldet .nur-angemeldet{display:none}
+  .menue-fuss{
+    margin-top:6px;padding:12px 12px 6px;border-top:1px solid rgba(255,255,255,.1);
+    font-size:12.5px;line-height:1.6;color:var(--leise);user-select:text;-webkit-user-select:text;
+  }
+  .menue-fuss a{color:var(--leise)}
 
   /* Anmeldung */
   form{display:none;flex-direction:column;gap:12px;width:min(340px,86vw)}
@@ -105,6 +134,9 @@
      oben aus dem Kasten. Nur auf breiten Fenstern; schmal bleibt der Text
      unter dem Ball. */
   .protokoll{display:none}
+  .protokoll-knopf{display:none}
+  /* Eingeklappt: kein Wortlaut, auch nicht unter dem Ball */
+  body.ohne-text .gehoert,body.ohne-text .zeile.antwort{visibility:hidden}
   @media (min-width:900px){
     .protokoll{
       display:flex;flex-direction:column;gap:12px;position:fixed;z-index:2;
@@ -115,11 +147,19 @@
       mask-image:linear-gradient(to bottom,transparent 0,#000 28px);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 28px);
     }
     .protokoll:empty{display:none}
+    /* Knopf über dem Kasten: Text aus- und einklappen */
+    .protokoll-knopf{
+      display:block;position:fixed;z-index:2;right:clamp(18px,3vw,48px);
+      top:calc(50% - min(46vh,480px) * .1 - 40px);
+    }
+    .protokoll:empty + .protokoll-knopf{display:none}
+    body.ohne-text .protokoll{display:none}
+    body.ohne-text .protokoll-knopf{display:block}
     .protokoll > :first-child{margin-top:auto}
     .protokoll .du{color:var(--leise)}
     .protokoll .aura{color:var(--text)}
     .protokoll .wer{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--akt);margin-bottom:2px}
-    body.abgemeldet .protokoll{display:none}
+    body.abgemeldet .protokoll,body.abgemeldet .protokoll-knopf{display:none}
     /* Der Wortlaut steht rechts; mittig nur Zustand und kurze Hinweise */
     .gehoert{visibility:hidden}
     .zeile.antwort{visibility:hidden}
@@ -129,11 +169,21 @@
 <body class="abgemeldet">
 <canvas id="orb"></canvas>
 <div class="protokoll" id="protokoll" aria-live="polite"></div>
-<div class="eigentum">Aura · Eigentum der TR-Management</div>
+<button class="abmelden protokoll-knopf" id="protokoll-knopf" type="button">Text ausblenden</button>
+<button class="menue-knopf" id="menue-knopf" type="button" aria-label="Menü" aria-expanded="false" aria-controls="menue"><span></span><span></span><span></span></button>
+<nav class="menue" id="menue" hidden>
+  <button id="text-knopf" class="nur-angemeldet" type="button">Text ausblenden</button>
+  <button id="vollbild-knopf" type="button">Vollbild</button>
+  <button id="konten-knopf" class="nur-angemeldet" type="button">Konten</button>
+  <button id="abmelden" class="nur-angemeldet" type="button">Abmelden</button>
+  <div class="menue-fuss">Aura · Eigentum der TR-Management<br><a href="mailto:info@tr-management.de">info@tr-management.de</a></div>
+</nav>
 <div class="rahmen">
-  <div class="logo">AURA</div>
+  <div class="kopf">
+    <div class="logo">AURA</div>
+    <div class="wort" id="wort">bereit</div>
+  </div>
   <div class="orbplatz" id="orbplatz" aria-label="Aura – tippen zum Sprechen" role="button"></div>
-  <div class="wort" id="wort">bereit</div>
 
   <form id="anmeldung" autocomplete="on">
     <button id="microsoft" type="button">Mit Microsoft anmelden</button>
@@ -147,16 +197,16 @@
   <div class="gespraech">
     <div class="gehoert" id="gehoert"></div>
     <div class="zeile" id="zeile">Tippe auf den Ball und sprich.</div>
-    <div class="hilfe">Tippen: zuhören · nochmal tippen: beenden <span id="m365" hidden>· <button class="abmelden" type="button">Microsoft verbinden</button></span> <span id="freigaben-knopf" hidden>· <button class="abmelden" type="button">Freigaben</button></span> · <button class="abmelden" id="vollbild-knopf" type="button">Vollbild</button> · <button class="abmelden" id="konten-knopf" type="button">Konten</button> · <button class="abmelden" id="abmelden" type="button">abmelden</button></div>
+    <div class="hilfe">Tippen: zuhören · nochmal tippen: beenden <span id="m365" hidden>· <button class="abmelden" type="button">Microsoft verbinden</button></span> <span id="freigaben-knopf" hidden>· <button class="abmelden" type="button">Freigaben</button></span></div>
   </div>
   <div class="tafel" id="tafel" hidden>
     <button class="abmelden schliessen" type="button" id="tafel-zu">schließen</button>
     <div id="tafel-inhalt"></div>
   </div>
 </div>
-<script src="konfig.js?v=20260929104524"></script>
-<script src="anmeldung.js?v=20260929104524"></script>
-<script src="orb.js?v=20260929104524"></script>
-<script src="konsole.js?v=20260929104524"></script>
+<script src="konfig.js?v=20260929110011"></script>
+<script src="anmeldung.js?v=20260929110011"></script>
+<script src="orb.js?v=20260929110011"></script>
+<script src="konsole.js?v=20260929110011"></script>
 </body>
 </html>
