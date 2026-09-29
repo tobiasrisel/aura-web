@@ -203,7 +203,7 @@
       return [f(0)*255, f(8)*255, f(4)*255];
     }
     return {
-      ax: XB, groesse: 0.78, schnell: true, musik: true,
+      ax: XB, ay: 1.4, groesse: 0.78, schnell: true, musik: true, vollflaechig: true,
       takt(t) {
         // etwa 50 Spalten je Sekunde, unabhaengig von der Bildrate
         if (letzte === null || t - letzte > 0.5) letzte = t - 1/50;
@@ -602,14 +602,18 @@
       const R = Math.max(8, Math.min(S*0.44, frei/2.5, freiY/2.0));
 
       /* Figurmassstab */
-      let fs = 0;
-      if (figur) fs = Math.max(4, Math.min(S*figur.groesse*1.15, freiY*0.94, (frei*0.9)/Math.max(0.2, figur.ax)));
+      let fs = 0, fsY = 0;
+      if (figur && figur.vollflaechig) {
+        // Die ganze Flaeche, Breite und Hoehe getrennt – nur der weiche Rand bleibt frei
+        fs  = Math.max(4, (frei*0.97)/figur.ax);
+        fsY = Math.max(4, (freiY*0.95)/figur.ay);
+      } else if (figur) fsY = fs = Math.max(4, Math.min(S*figur.groesse*1.15, freiY*0.94, (frei*0.9)/Math.max(0.2, figur.ax)));
 
       const auf = pegel;
       const sinW = Math.sin(winkel), cosW = Math.cos(winkel);
       const glob = 0.95 + auf*0.6;
       const ziel = modus && figur ? 1 : 0;
-      staub += ((modus ? 0.28 : 1) - staub)*0.04;
+      staub += ((figur && figur.musik ? 0 : modus ? 0.28 : 1) - staub)*0.04;
 
       let anz = 0;
       for (let i = 0; i < N; i++) {
@@ -655,7 +659,7 @@
           if (w[i] > 0.002 && figur) {
             figur.ziel(fj[i], nForm, zeit, O);
             const per = 1/(1 - O[2]*0.2);
-            const gx = mx + O[0]*fs*per, gy = my + O[1]*fs*per;
+            const gx = mx + O[0]*fs*per, gy = my + O[1]*fsY*per;
             if (w[i] < 0.02) { fx[i] = gx; fy[i] = gy; fz[i] = O[2]; fb[i] = O[3]; }
             else {
               const fo = figur.schnell ? 0.45 : folg[i];
