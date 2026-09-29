@@ -182,21 +182,29 @@
     return f;
   }
 
-  /* Musikmodus: Schallwelle aus dem laufenden Audiosignal (AnalyserNode).
-     Die Huellkurve laeuft von rechts nach links durch, jede Spalte ist ein
-     Moment; ueber die Breite ein Farbverlauf wie ein Regenbogen, bei
-     Spitzen springen einzelne Funken ueber und unter die Welle. */
+  /* Musikmodus: Spektrum des laufenden Audiosignals (AnalyserNode), wie ein
+     Analyzer. Breite: Frequenz logarithmisch von 30 Hz bis 16 kHz, Bass links;
+     Hoehe: Pegel je Frequenz in dB, gespiegelt um die Mittellinie. Balken
+     steigen sofort und fallen weich; Funken halten kurz die Spitzen. Farbe
+     ueber die Breite wie ein Regenbogen. */
   function musikFigur(analyse) {
     const SP = 200, XB = 1.9;                   // Spalten, halbe Breite
-    const huelle = new Float32Array(SP), spitze = new Float32Array(SP);
-    const spek = new Uint8Array(analyse.frequencyBinCount);
-    // Frequenzbaender ueber die Bin-Breite (Abtastrate / fftSize, meist ~23 Hz)
+    const F_UNTEN = 30, F_OBEN = 16000, DYN = 44; // Frequenzbereich, dB-Umfang
+    const pegel = new Float32Array(SP), halt = new Float32Array(SP);
+    const db = new Float32Array(analyse.frequencyBinCount);
     const hz = (analyse.context ? analyse.context.sampleRate : 48000)/analyse.fftSize;
-    const bin = f => Math.max(1, Math.min(spek.length - 1, Math.round(f/hz)));
-    const BASS = [bin(25), bin(150)], MITTE = [bin(150), bin(2000)], HOCH = [bin(2000), bin(10000)];
-    const band = ([von, bis]) => { let s = 0; for (let i = von; i <= bis; i++) s += spek[i]; return s/((bis - von + 1)*255); };
-    // Je Band ein langsam fallendes Maximum: folgt dem Song, nicht jedem Schlag
-    let letzte = null, bassMax = 0.15, mitteMax = 0.15, hochMax = 0.1, hochMittel = 0;
+    // Je Spalte der Bin-Bereich und ein Ausgleich von +2 dB je Oktave um 1 kHz –
+    // Musik faellt zu den Hoehen hin ab, sonst blieben sie flach
+    const von = new Uint16Array(SP), bis = new Uint16Array(SP), neig = new Float32Array(SP);
+    for (let c = 0; c < SP; c++) {
+      const f  = F_UNTEN*Math.pow(F_OBEN/F_UNTEN, c/(SP - 1));
+      const fu = F_UNTEN*Math.pow(F_OBEN/F_UNTEN, (c - 0.5)/(SP - 1));
+      const fo = F_UNTEN*Math.pow(F_OBEN/F_UNTEN, (c + 0.5)/(SP - 1));
+      von[c] = Math.max(1, Math.min(db.length - 1, Math.floor(fu/hz)));
+      bis[c] = Math.max(von[c], Math.min(db.length - 1, Math.ceil(fo/hz)));
+      neig[c] = 2*Math.log2(f/1000);
+    }
+    let oben = -30;                              // lauteste Stelle, faellt langsam
     const farben = new Float32Array(SP*3);
     for (let c = 0; c < SP; c++) {               // Tuerkis → Gruen → Gelb → Rot → Magenta → Violett
       const h = 175 - c/(SP - 1)*(175 + 95);     // Farbton in Grad, 175 … -95
@@ -208,40 +216,40 @@
       const f = n => l - a*Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
       return [f(0)*255, f(8)*255, f(4)*255];
     }
+    let letzte = null;
+    const roh = new Float32Array(SP);
     return {
-      ax: XB, ay: 1.4, groesse: 0.78, schnell: true, musik: true, vollflaechig: true,
+      ax: XB, ay: 1.12, groesse: 0.78, schnell: true, musik: true, vollflaechig: true,
       takt(t) {
-        // etwa 50 Spalten je Sekunde, unabhaengig von der Bildrate
-        if (letzte === null || t - letzte > 0.5) letzte = t - 1/50;
-        const schritte = Math.min(SP, Math.floor((t - letzte)*50));
-        if (schritte < 1) return;
-        letzte += schritte/50;
-        analyse.getByteFrequencyData(spek);
-        const bass = band(BASS), mitte = band(MITTE), hoch = band(HOCH);
-        bassMax  = Math.max(bassMax*0.9985, bass, 0.08);
-        mitteMax = Math.max(mitteMax*0.9985, mitte, 0.08);
-        hochMax  = Math.max(hochMax*0.9985, hoch, 0.05);
-        // Kontrast spreizen: Bass traegt die Hoehe, Mitten nur einen schmalen Koerper
-        const b = Math.pow(bass/bassMax, 2.2), m = Math.pow(mitte/mitteMax, 1.5);
-        const wert = Math.min(1, b*0.85 + m*0.18);
-        // Funken aus ploetzlichen Anstiegen der Hoehen (Hi-Hat, Snare)
-        hochMittel += (hoch - hochMittel)*0.15;
-        const sp = Math.max(0, Math.min(1, (hoch - hochMittel*1.08)/(hochMax*0.25) + b*0.35));
-        huelle.copyWithin(0, schritte); spitze.copyWithin(0, schritte);
-        for (let k = SP - schritte; k < SP; k++) { huelle[k] = wert; spitze[k] = sp; }
+        const dt = letzte === null ? 1/60 : Math.min(0.1, Math.max(0, t - letzte));
+        letzte = t;
+        analyse.getFloatFrequencyData(db);
+        let spitzeJetzt = -200;
+        for (let c = 0; c < SP; c++) {
+          let m = -200;
+          for (let i = von[c]; i <= bis[c]; i++) if (db[i] > m) m = db[i];
+          roh[c] = m + neig[c];
+          if (roh[c] > spitzeJetzt) spitzeJetzt = roh[c];
+        }
+        // Obergrenze folgt dem Song (steigt sofort, faellt ~3 dB je Sekunde)
+        oben = Math.max(oben - 3*dt, spitzeJetzt, -70);
+        const fall = Math.pow(0.02, dt);           // Balken: nach 1 s auf 2 %
+        for (let c = 0; c < SP; c++) {
+          const v = Math.pow(Math.max(0, Math.min(1, (roh[c] - (oben - DYN))/DYN)), 2.0);
+          pegel[c] = v > pegel[c] ? v : pegel[c]*fall + v*(1 - fall);
+          halt[c] = Math.max(halt[c] - 0.5*dt, pegel[c]);   // Spitze sinkt langsam nach
+        }
       },
       ziel(j, n, t, o) {
-        const c = j % SP, a = huelle[c];
-        const u = zufall(j, 3);
+        const c = j % SP, a = pegel[c];
         o[0] = (c/(SP - 1)*2 - 1)*XB;
-        if (u < 0.9) {                           // die Welle selbst, zur Mitte dichter
+        if (zufall(j, 3) < 0.9) {                // die Balken, gespiegelt um die Mitte
           const v = zufall(j, 4)*2 - 1;
-          o[1] = Math.sign(v)*Math.pow(Math.abs(v), 1.4)*(0.015 + a*0.8)*(0.93 + 0.14*Math.sin(t*9 + j));
-          o[3] = 0.55 + a*0.6;
-        } else {                                  // Funken ueber und unter der Welle
-          const hoch = spitze[c] > 0.55 ? 0.62 + zufall(j, 5)*0.35 : a*0.6;
-          o[1] = (zufall(j, 6) < 0.5 ? -1 : 1)*hoch*(0.4 + a);
-          o[3] = spitze[c] > 0.55 ? 1 : 0.3;
+          o[1] = Math.sign(v)*Math.pow(Math.abs(v), 0.8)*(0.012 + a);
+          o[3] = 0.5 + a*0.6;
+        } else {                                  // Funken: halten die Spitzen
+          o[1] = (zufall(j, 6) < 0.5 ? -1 : 1)*(halt[c] + 0.03);
+          o[3] = halt[c] > 0.08 ? 1 : 0.2;
         }
         o[2] = 0;
       },

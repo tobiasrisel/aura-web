@@ -107,7 +107,7 @@
 
   /* ---------- Musikmodus ----------
    * „Musikmodus“ (gesprochen oder im Menü): das Mikrofon bleibt offen, der
-   * Ball zeigt die laufende Musik als Schallwelle (orb.js, musikFigur).
+   * Ball zeigt das Spektrum der laufenden Musik (orb.js, musikFigur).
    * Nichts davon geht an die Spracherkennung. Ohne Rauschunterdrückung und
    * automatische Pegelanpassung – die würden die Musik verbiegen. Ende: Tipp
    * auf den Ball, Escape, Menü oder ⌥ Leertaste.
@@ -123,8 +123,8 @@
       musikAc = new (window.AudioContext || window.webkitAudioContext)();
       if(musikAc.state === "suspended") await musikAc.resume().catch(() => {});
       const analyse = musikAc.createAnalyser();
-      analyse.fftSize = 2048;
-      analyse.smoothingTimeConstant = 0.25;   // wenig glätten: Schläge sollen stehen bleiben
+      analyse.fftSize = 8192;                 // feine Auflösung auch im Bass (~6 Hz)
+      analyse.smoothingTimeConstant = 0.3;    // wenig glätten: Schläge sollen stehen bleiben
       musikAc.createMediaStreamSource(musikStrom).connect(analyse);
       orb.musik(analyse);
       document.body.classList.add("musik");
