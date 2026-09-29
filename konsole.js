@@ -18,9 +18,8 @@
   const elPlatz = document.getElementById("orbplatz");
   const orb     = AuraOrb(document.getElementById("orb"), {
     anker: elPlatz,
-    // In der Mac-App sparsam: dort zeichnen bis zu drei Baelle (Fenster, Wand, Kugel).
-    punkte: window.__TAURI__ ? 4000 : matchMedia("(pointer: coarse)").matches ? 6000 : 9000,
-    ...(window.__TAURI__ ? {fps: 30, dprMax: 1.5} : {}),
+    // Mac-App und Browser zeichnen gleich (Vorgabe Tobias, 29.09.2026).
+    punkte: matchMedia("(pointer: coarse)").matches ? 6000 : 9000,
   });
   const elWort  = document.getElementById("wort");
   const elZeile = document.getElementById("zeile");
@@ -89,12 +88,39 @@
   function partikel(satz){
     const befehl = AuraOrb.deuten(satz, orb.imPartikelmodus());
     if(!befehl) return false;
+    formNr++;   // eine noch laufende Formanfrage gilt nicht mehr
+    if(befehl.form){ formHolen(befehl.form); return true; }
     const rueck = orb.befolgen(befehl);
     document.body.classList.toggle("partikel", orb.imPartikelmodus());
     if(rueck) zeigen(rueck);
     rufen?.("partikel_melden", {befehl: JSON.stringify(befehl)});
     zustand("ruhe");
     return true;
+  }
+
+  // Frei beschriebene Form: der Server zeichnet sie (aura, partikelform),
+  // dann formt der Ball sie. Scheitert das, steht das Wort da.
+  let formNr = 0;
+  async function formHolen(beschreibung){
+    const nr = ++formNr;
+    if(!orb.imPartikelmodus()) orb.partikelmodus(true);
+    document.body.classList.add("partikel");
+    zustand("ruhe");
+    zeigen(`Ich forme „${beschreibung}“ …`);
+    let befehl;
+    try{
+      const r = await anm.rufen("aura", {aktion: "partikelform", beschreibung});
+      const daten = await r.json();
+      if(!r.ok || !daten.elemente) throw new Error(daten.fehler || `Status ${r.status}`);
+      befehl = {befehl: "zeige", formdaten: daten};
+    }catch(e){
+      console.error("Partikelform:", e);
+      befehl = {befehl: "zeige", text: beschreibung};
+    }
+    if(nr !== formNr || !orb.imPartikelmodus()) return;   // inzwischen etwas anderes
+    const rueck = orb.befolgen(befehl);
+    if(rueck) zeigen(befehl.formdaten ? rueck : `${rueck} – die Form konnte ich nicht zeichnen.`);
+    rufen?.("partikel_melden", {befehl: JSON.stringify(befehl)});
   }
 
   /* ---------- Gesprächslauf ----------
@@ -678,18 +704,33 @@
   // Klick daneben: lib.rs verbirgt das Fenster und meldet "aura://sichtbar"
   // = false; sichtbar() beendet dann Aufnahme und Ton.
 
-  // Das Overlay ist bildschirmweit (lib.rs). Ein Klick neben das Bedienfeld
-  // schließt es – wie früher der Klick neben das kleine Fenster.
+  // Das Overlay ist bildschirmweit und durchsichtig (lib.rs). Ein Klick
+  // neben Ball, Text, Anmeldung, Mitschrift oder Tafel schließt es.
   document.addEventListener("mousedown", e => {
-    if(!fenster || !document.getElementById("rahmen") || e.button !== 0 || e.target.closest("#rahmen, #tafel")) return;
+    if(!fenster || e.button !== 0) return;
+    if(e.target.closest("#orbplatz, #anmeldung, .gespraech, .wort, .logo, #protokoll, #tafel")) return;
     beenden();
     rufen?.("overlay_schliessen");
   });
 
+  /* Mac-Hülle „Aura Taste“ (mac-taste/): holt die Chrome-App mit ⌥ Leertaste
+   * nach vorn und meldet die Taste über 127.0.0.1. Nur in der installierten
+   * App auf dem Mac – sonst fragte Chrome überall nach dem lokalen Netzwerk.
+   * maxTouchPoints schließt das iPad aus, das sich auch als Mac ausgibt. */
+  const HUELLE = "http://127.0.0.1:47321";
+  const mitHuelle = !rufen && /Mac/.test(navigator.platform) && navigator.maxTouchPoints === 0
+    && matchMedia("(display-mode: standalone)").matches;
+
+  // Fenster zu: in der Tauri-App verbergen, in der Chrome-App die Hülle bitten.
+  function schliessen(){
+    if(rufen) rufen("overlay_schliessen");
+    else if(mitHuelle) fetch(HUELLE + "/verbergen", {method: "POST"}).catch(() => {});
+  }
+
   document.addEventListener("keydown", e => {
     if(e.key === "Escape"){
       beenden();
-      rufen?.("overlay_schliessen");
+      schliessen();
     }
   });
 
@@ -699,6 +740,22 @@
     else{ beenden(); rufen?.("overlay_schliessen"); }
   }
   horchen?.("aura://taste", taste);
+
+  // Dasselbe von der Hülle. Läuft sie nicht, still alle 15 s neu versuchen
+  // (EventSource versuchte es sonst alle paar Sekunden).
+  function huelleVerbinden(){
+    const q = new EventSource(HUELLE + "/ereignisse");
+    q.addEventListener("hoeren", () => {
+      if(anm.angemeldet() && orb.jetzt() === "ruhe" && !aufnahme) hoeren();
+    });
+    q.addEventListener("taste", () => {
+      if(!anm.angemeldet()) return;
+      if(orb.jetzt() === "ruhe" && !aufnahme) hoeren();
+      else{ beenden(); schliessen(); }
+    });
+    q.onerror = () => { q.close(); setTimeout(huelleVerbinden, 15000); };
+  }
+  if(mitHuelle) huelleVerbinden();
 
   // Klick auf die kleine Kugel (Mac-App): zuhören oder beenden, das Fenster
   // bleibt, wo es ist.

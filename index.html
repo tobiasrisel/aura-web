@@ -124,9 +124,15 @@
     .gehoert{visibility:hidden}
     .zeile.antwort{visibility:hidden}
   }
+  /* Mac-App: das Fenster deckt den Arbeitsbereich des Bildschirms unter dem
+     Mauszeiger (lib.rs), mit demselben dunklen Grund wie im Browser – nichts
+     scheint durch. Escape oder ein Klick neben die Bedienelemente schließt
+     (konsole.js). */
+  body.app .tafel{inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);width:min(720px,90vw);max-height:80vh}
 </style>
 </head>
 <body class="abgemeldet">
+<script>if(window.__TAURI__) document.body.classList.add("app");</script>
 <canvas id="orb"></canvas>
 <div class="protokoll" id="protokoll" aria-live="polite"></div>
 <div class="eigentum">Aura · Eigentum der TR-Management</div>
@@ -154,9 +160,9 @@
     <div id="tafel-inhalt"></div>
   </div>
 </div>
-<script src="konfig.js?v=20260928192353"></script>
-<script src="anmeldung.js?v=20260928192353"></script>
-<script src="orb.js?v=20260928192353"></script>
-<script src="konsole.js?v=20260928192353"></script>
+<script src="konfig.js?v=20260929011333"></script>
+<script src="anmeldung.js?v=20260929011333"></script>
+<script src="orb.js?v=20260929011333"></script>
+<script src="konsole.js?v=20260929011333"></script>
 </body>
 </html>

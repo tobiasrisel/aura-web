@@ -155,6 +155,33 @@
     o[0] = x*c; o[2] = x*s;
   }
 
+  /* Frei beschriebene Form vom Server (aura, Aktion partikelform): Flaechen
+     und Linien auf 400 x 400, abgetastet wie die festen Figuren. */
+  function formFigur(daten, n) {
+    const abt = abtasten(g => {
+      const flaechen = new Path2D();
+      for (const el of daten.elemente || []) {
+        if (el.art !== "flaeche") continue;
+        el.punkte.forEach(([x, y], k) => k ? flaechen.lineTo(x, y) : flaechen.moveTo(x, y));
+        flaechen.closePath();
+      }
+      g.fill(flaechen, "evenodd");
+      for (const el of daten.elemente || []) {
+        if (el.art !== "linie") continue;
+        g.lineWidth = el.staerke || 10;
+        g.beginPath();
+        el.punkte.forEach(([x, y], k) => k ? g.lineTo(x, y) : g.moveTo(x, y));
+        g.stroke();
+      }
+    }, 400, 400, n);
+    const f = flach(abt, 0.8,
+      daten.bewegung === "drehen" ? (o, t) => drehenY(o, t*0.6)
+      : daten.bewegung === "ruhig" ? null
+      : (o, t, j) => { o[1] += Math.sin(t*0.9) * 0.03; o[0] += Math.sin(t*1.3 + j) * 0.004; });
+    f.wort = daten.name;
+    return f;
+  }
+
   const FIGUREN = {
     herz: {
       name: "Herz",
@@ -372,6 +399,7 @@
     + "dem mir uns jetzt nun aura wort text schreib schreibe schreiben forme formen bilde bilden "
     + "form figur als und noch kannst du mit aus partikeln partikel").split(" "));
   const SCHREIB = new Set(["schreib", "schreibe", "schreiben", "wort", "text", "buchstabiere"]);
+  const SIGNAL = new Set(["partikel", "partikeln", "partikelform", "partikelbild"]);
   const ZUR_KUGEL = new Set(["kugel", "orb", "energieball", "ball", "ursprung", "zurück", "zurueck"]);
 
   /* ================================================================== */
@@ -704,7 +732,8 @@
     /* --- Partikelmodus --- */
     function zeige(spec) {
       if (!spec || spec.figur === "orb") { figur = null; return null; }
-      if (spec.text) figur = textFigur(String(spec.text).slice(0, 40), nForm);
+      if (spec.formdaten) figur = formFigur(spec.formdaten, nForm);
+      else if (spec.text) figur = textFigur(String(spec.text).slice(0, 40), nForm);
       else if (FIGUREN[spec.figur]) figur = FIGUREN[spec.figur].bau(nForm);
       return figur;
     }
@@ -740,6 +769,7 @@
         if (b.befehl === "aus") { api.partikelmodus(false); return "Partikelmodus aus."; }
         if (b.befehl === "zeige") {
           api.zeige(b);
+          if (b.formdaten) return b.formdaten.name || "Form";
           if (b.text) return `„${b.text}“`;
           if (b.figur === "orb") return "Zurück zur Kugel.";
           return FIGUREN[b.figur] ? FIGUREN[b.figur].name : null;
@@ -750,26 +780,39 @@
     return api;
   }
 
-  /* Satz deuten. Liefert {befehl:"an"|"aus"} jederzeit, im Partikelmodus
-     zusaetzlich {befehl:"zeige", figur|text}; sonst null. */
+  /* Satz deuten. Liefert {befehl:"an"|"aus"} jederzeit. Im Partikelmodus –
+     oder ausserhalb mit dem Signalwort "Partikel" („Partikel Galaxie“,
+     „zeig als Partikel ein Segelboot“) – zusaetzlich {befehl:"zeige", …}:
+       figur  – eine der festen Figuren,
+       text   – nach „schreibe …“ das Wort selbst,
+       form   – alles andere: frei beschrieben, zeichnet der Server
+                (konsole.js holt sie und ruft befolgen mit formdaten);
+     sonst null. */
   AuraOrb.deuten = function (satz, partikelmodus) {
     const roh = String(satz || "").toLowerCase();
     const kompakt = roh.replace(/[^a-zäöüß]/g, "");
     if (/partikelmodus(aus|ab|beenden|stopp|stop)/.test(kompakt)) return {befehl: "aus"};
     if (/partikelmodus(an|ein|starten)/.test(kompakt))            return {befehl: "an"};
-    if (!partikelmodus) return null;
 
-    const woerter = roh.replace(/[^a-zäöüß0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+    let woerter = roh.replace(/[^a-zäöüß0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+    if (!partikelmodus) {
+      const signal = woerter.findIndex(x => SIGNAL.has(x));
+      if (signal < 0) return null;
+      woerter = woerter.filter((x, k) => k !== signal);
+    }
     const s = woerter.findIndex(x => SCHREIB.has(x));
     if (s >= 0) {
       const rest = woerter.slice(s + 1).filter(x => !FUELL.has(x));
       if (rest.length) return {befehl: "zeige", text: rest.slice(0, 5).join(" ")};
     }
-    if (woerter.some(x => ZUR_KUGEL.has(x))) return {befehl: "zeige", figur: "orb"};
-    for (const name in FIGUREN)
-      if (woerter.some(x => FIGUREN[name].worte.includes(x))) return {befehl: "zeige", figur: name};
     const kern = woerter.filter(x => !FUELL.has(x));
-    return kern.length ? {befehl: "zeige", text: kern.slice(0, 4).join(" ")} : null;
+    if (!kern.length) return partikelmodus ? null : {befehl: "an"};
+    if (kern.some(x => ZUR_KUGEL.has(x))) return {befehl: "zeige", figur: "orb"};
+    // Feste Figur nur, wenn sie allein steht – „ein Haus am See“ ist eine Form.
+    if (kern.length <= 2)
+      for (const name in FIGUREN)
+        if (kern.some(x => FIGUREN[name].worte.includes(x))) return {befehl: "zeige", figur: name};
+    return {befehl: "zeige", form: kern.slice(0, 12).join(" ")};
   };
   AuraOrb.figuren = Object.keys(FIGUREN);
 
