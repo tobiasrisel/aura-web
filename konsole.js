@@ -124,7 +124,7 @@
       if(musikAc.state === "suspended") await musikAc.resume().catch(() => {});
       const analyse = musikAc.createAnalyser();
       analyse.fftSize = 2048;
-      analyse.smoothingTimeConstant = 0.5;
+      analyse.smoothingTimeConstant = 0.25;   // wenig glätten: Schläge sollen stehen bleiben
       musikAc.createMediaStreamSource(musikStrom).connect(analyse);
       orb.musik(analyse);
       document.body.classList.add("musik");

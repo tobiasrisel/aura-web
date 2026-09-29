@@ -189,8 +189,14 @@
   function musikFigur(analyse) {
     const SP = 200, XB = 1.9;                   // Spalten, halbe Breite
     const huelle = new Float32Array(SP), spitze = new Float32Array(SP);
-    const zeitDaten = new Float32Array(analyse.fftSize);
-    let letzte = null, boden = 0.02, oben = 0.2;
+    const spek = new Uint8Array(analyse.frequencyBinCount);
+    // Frequenzbaender ueber die Bin-Breite (Abtastrate / fftSize, meist ~23 Hz)
+    const hz = (analyse.context ? analyse.context.sampleRate : 48000)/analyse.fftSize;
+    const bin = f => Math.max(1, Math.min(spek.length - 1, Math.round(f/hz)));
+    const BASS = [bin(25), bin(150)], MITTE = [bin(150), bin(2000)], HOCH = [bin(2000), bin(10000)];
+    const band = ([von, bis]) => { let s = 0; for (let i = von; i <= bis; i++) s += spek[i]; return s/((bis - von + 1)*255); };
+    // Je Band ein langsam fallendes Maximum: folgt dem Song, nicht jedem Schlag
+    let letzte = null, bassMax = 0.15, mitteMax = 0.15, hochMax = 0.1, hochMittel = 0;
     const farben = new Float32Array(SP*3);
     for (let c = 0; c < SP; c++) {               // Tuerkis → Gruen → Gelb → Rot → Magenta → Violett
       const h = 175 - c/(SP - 1)*(175 + 95);     // Farbton in Grad, 175 … -95
@@ -210,15 +216,17 @@
         const schritte = Math.min(SP, Math.floor((t - letzte)*50));
         if (schritte < 1) return;
         letzte += schritte/50;
-        analyse.getFloatTimeDomainData(zeitDaten);
-        let q = 0, max = 0;
-        for (let i = 0; i < zeitDaten.length; i++) { const v = zeitDaten[i]; q += v*v; if (Math.abs(v) > max) max = Math.abs(v); }
-        const rms = Math.sqrt(q/zeitDaten.length);
-        // Selbst einpegeln: leise Raeume und laute Clubs fuellen beide die Hoehe
-        boden += (Math.min(boden, rms) - boden)*0.5 + 0.00002;
-        oben = Math.max(oben*0.997, rms, 0.03);
-        const wert = Math.max(0, Math.min(1, (rms - boden)/(oben - boden + 1e-6)));
-        const sp = Math.min(1, max/(oben*2.2));
+        analyse.getByteFrequencyData(spek);
+        const bass = band(BASS), mitte = band(MITTE), hoch = band(HOCH);
+        bassMax  = Math.max(bassMax*0.9985, bass, 0.08);
+        mitteMax = Math.max(mitteMax*0.9985, mitte, 0.08);
+        hochMax  = Math.max(hochMax*0.9985, hoch, 0.05);
+        // Kontrast spreizen: Bass traegt die Hoehe, Mitten nur einen schmalen Koerper
+        const b = Math.pow(bass/bassMax, 2.2), m = Math.pow(mitte/mitteMax, 1.5);
+        const wert = Math.min(1, b*0.85 + m*0.18);
+        // Funken aus ploetzlichen Anstiegen der Hoehen (Hi-Hat, Snare)
+        hochMittel += (hoch - hochMittel)*0.15;
+        const sp = Math.max(0, Math.min(1, (hoch - hochMittel*1.08)/(hochMax*0.25) + b*0.35));
         huelle.copyWithin(0, schritte); spitze.copyWithin(0, schritte);
         for (let k = SP - schritte; k < SP; k++) { huelle[k] = wert; spitze[k] = sp; }
       },
@@ -228,7 +236,7 @@
         o[0] = (c/(SP - 1)*2 - 1)*XB;
         if (u < 0.9) {                           // die Welle selbst, zur Mitte dichter
           const v = zufall(j, 4)*2 - 1;
-          o[1] = Math.sign(v)*Math.pow(Math.abs(v), 1.4)*(0.015 + a*0.8)*(0.85 + 0.3*Math.sin(t*9 + j));
+          o[1] = Math.sign(v)*Math.pow(Math.abs(v), 1.4)*(0.015 + a*0.8)*(0.93 + 0.14*Math.sin(t*9 + j));
           o[3] = 0.55 + a*0.6;
         } else {                                  // Funken ueber und unter der Welle
           const hoch = spitze[c] > 0.55 ? 0.62 + zufall(j, 5)*0.35 : a*0.6;
