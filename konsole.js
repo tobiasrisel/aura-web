@@ -215,7 +215,7 @@
     if(!frage) return;
     const meiner = lauf;
     zustand("denken");
-    zeigen("…");
+    zeigen("");
     try{
       let ergebnis = await (await anm.rufen("aura", {
         aktion: "antwort", frage, verlauf: verlauf.slice(-12), faehigkeiten: FAEHIGKEITEN,
@@ -346,7 +346,7 @@
         return;
       }
       zustand("denken");
-      zeigen("…");
+      zeigen("");
       try{
         const blob = new Blob(teile, {type: (rec.mimeType || format || "audio/mp4").split(";")[0]});
         const antwort = await anm.rufen("sprache-hoeren", blob);
@@ -371,7 +371,7 @@
     rec.start(250);
     zustand("hoeren");
     elHoert.textContent = "";
-    zeigen("Ich höre.");
+    zeigen("");
 
     // Stille erkennen. setTimeout statt requestAnimationFrame: läuft auch,
     // wenn das Fenster gerade nicht gezeichnet wird.
@@ -428,7 +428,7 @@
     const schluessel = decodeURIComponent(location.hash.slice("#anmeldung=".length));
     history.replaceState(null, "", location.pathname);
     anm.einloesen(schluessel)
-      .then(() => { ansicht(); zeigen("Angemeldet. Tippe auf den Ball und sprich."); })
+      .then(() => { ansicht(); zeigen(""); })
       .catch((err) => { elMeldung.textContent = `Anmeldung fehlgeschlagen: ${err.message}`; });
   }
 
@@ -443,7 +443,7 @@
       // Mac: gleich zuhören. Browser/iPad: auf den Tipp warten – erst der
       // schaltet dort den Ton frei.
       if(fenster) hoeren();
-      else zeigen("Tippe auf den Ball und sprich.");
+      else zeigen("");
     }catch(err){
       elMeldung.textContent = err.status === 400
         ? "E-Mail oder Passwort stimmen nicht."
@@ -488,7 +488,7 @@
       const {verbunden, rechte_fehlen} = await (await anm.rufen("m365-verbinden", {aktion: "status"})).json();
       elM365.hidden = !!verbunden;
       // Verbunden, aber noch ohne Schreibrechte: einmal neu verbinden.
-      elM365.querySelector("button").textContent = rechte_fehlen ? "Microsoft neu verbinden" : "Microsoft verbinden";
+      elM365.textContent = rechte_fehlen ? "Microsoft neu verbinden" : "Microsoft verbinden";
     }catch{ elM365.hidden = true; }
   }
   elM365?.addEventListener("click", async () => {
@@ -546,7 +546,8 @@
       const {freigaben} = await (await anm.rufen("aura", {aktion: "freigaben"})).json();
       offeneFreigaben = freigaben ?? [];
       elFreigabenKnopf.hidden = !offeneFreigaben.length;
-      elFreigabenKnopf.querySelector("button").textContent = `Freigaben (${offeneFreigaben.length})`;
+      elFreigabenKnopf.textContent = `Freigaben (${offeneFreigaben.length})`;
+      document.body.classList.toggle("freigaben-offen", offeneFreigaben.length > 0);
       if(!elTafel.hidden && elTafel.dataset.art === "freigaben") freigabenZeigen();
     }catch{ /* still */ }
   }
@@ -730,7 +731,8 @@
     elMenueKnopf.setAttribute("aria-expanded", auf ? "true" : "false");
   }
   elMenueKnopf.addEventListener("click", e => { e.stopPropagation(); menue(elMenue.hidden); });
-  elMenue.addEventListener("click", e => { if(e.target.closest("button")) menue(false); });
+  // In der Einfangphase: Konten, Abmelden und Freigaben halten ihren Klick an.
+  elMenue.addEventListener("click", e => { if(e.target.closest("button")) menue(false); }, true);
   document.addEventListener("click", e => {
     if(!elMenue.hidden && !e.target.closest("#menue, #menue-knopf")) menue(false);
   });
