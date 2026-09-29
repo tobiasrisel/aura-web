@@ -94,7 +94,7 @@
     const befehl = AuraOrb.deuten(satz, orb.imPartikelmodus());
     if(!befehl) return false;
     formNr++;   // eine noch laufende Formanfrage gilt nicht mehr
-    if(befehl.befehl === "musik"){ musikStarten(); return true; }
+    if(befehl.befehl === "musik"){ musikStarten(befehl.art); return true; }
     if(befehl.befehl === "aus") musikBeenden();
     if(befehl.form){ formHolen(befehl.form); return true; }
     const rueck = orb.befolgen(befehl);
@@ -105,32 +105,39 @@
     return true;
   }
 
-  /* ---------- Musikmodus ----------
-   * „Musikmodus“ (gesprochen oder im Menü): das Mikrofon bleibt offen, der
-   * Ball zeigt das Spektrum der laufenden Musik (orb.js, musikFigur).
-   * Nichts davon geht an die Spracherkennung. Ohne Rauschunterdrückung und
-   * automatische Pegelanpassung – die würden die Musik verbiegen. Ende: Tipp
-   * auf den Ball, Escape, Menü oder ⌥ Leertaste.
+  /* ---------- Musik- und Wellenmodus ----------
+   * „Musikmodus“: Spektrum der laufenden Musik wie ein Analyzer; „Wellenmodus“:
+   * durchlaufende Welle, vom Bass getragen (orb.js, spektrumFigur/welleFigur).
+   * Gesprochen oder im Menü; das eine Wort schaltet vom anderen direkt um.
+   * Das Mikrofon bleibt offen, ohne Rauschunterdrückung und automatische
+   * Pegelanpassung – die würden die Musik verbiegen. Nichts davon geht an die
+   * Spracherkennung. Ende: Tipp auf den Ball, Escape, Menü oder ⌥ Leertaste.
    */
-  let musikStrom = null, musikAc = null;
+  let musikStrom = null, musikAc = null, musikAnalyse = null;
   const elMusikKnopf = document.getElementById("musik-knopf");
-  async function musikStarten(){
+  const elWellenKnopf = document.getElementById("wellen-knopf");
+  function musikKnoepfe(){
+    const art = orb.musikArt();
+    if(elMusikKnopf) elMusikKnopf.textContent = art === "spektrum" ? "Musikmodus beenden" : "Musikmodus";
+    if(elWellenKnopf) elWellenKnopf.textContent = art === "welle" ? "Wellenmodus beenden" : "Wellenmodus";
+  }
+  async function musikStarten(art = "spektrum"){
     beenden();
-    if(orb.imMusikmodus()) return;
+    if(musikAnalyse){ orb.musik(musikAnalyse, art); wortZeigen(); musikKnoepfe(); return; }
     try{
       musikStrom = await navigator.mediaDevices.getUserMedia({audio: {
         echoCancellation: false, noiseSuppression: false, autoGainControl: false}});
       musikAc = new (window.AudioContext || window.webkitAudioContext)();
       if(musikAc.state === "suspended") await musikAc.resume().catch(() => {});
-      const analyse = musikAc.createAnalyser();
-      analyse.fftSize = 8192;                 // feine Auflösung auch im Bass (~6 Hz)
-      analyse.smoothingTimeConstant = 0.3;    // wenig glätten: Schläge sollen stehen bleiben
-      musikAc.createMediaStreamSource(musikStrom).connect(analyse);
-      orb.musik(analyse);
+      musikAnalyse = musikAc.createAnalyser();
+      musikAnalyse.fftSize = 8192;                 // feine Auflösung auch im Bass (~6 Hz)
+      musikAnalyse.smoothingTimeConstant = 0.3;    // wenig glätten: Schläge sollen stehen bleiben
+      musikAc.createMediaStreamSource(musikStrom).connect(musikAnalyse);
+      orb.musik(musikAnalyse, art);
       document.body.classList.add("musik");
       zeigen("");
       wortZeigen();
-      if(elMusikKnopf) elMusikKnopf.textContent = "Musikmodus beenden";
+      musikKnoepfe();
     }catch(e){
       musikBeenden();
       zeigen(`Musikmodus: kein Mikrofon (${e.message}).`);
@@ -141,12 +148,13 @@
     orb.musik(null);
     musikStrom?.getTracks().forEach(t => t.stop());
     musikAc?.close().catch(() => {});
-    musikStrom = musikAc = null;
+    musikStrom = musikAc = musikAnalyse = null;
     document.body.classList.remove("musik");
     wortZeigen();
-    if(elMusikKnopf) elMusikKnopf.textContent = "Musikmodus";
+    musikKnoepfe();
   }
-  elMusikKnopf?.addEventListener("click", () => orb.imMusikmodus() ? musikBeenden() : musikStarten());
+  elMusikKnopf?.addEventListener("click", () => orb.musikArt() === "spektrum" ? musikBeenden() : musikStarten("spektrum"));
+  elWellenKnopf?.addEventListener("click", () => orb.musikArt() === "welle" ? musikBeenden() : musikStarten("welle"));
 
   // Frei beschriebene Form: der Server zeichnet sie (aura, partikelform),
   // dann formt der Ball sie. Scheitert das, steht das Wort da.
@@ -863,10 +871,10 @@
   // (anders als ⌥ Leertaste, die dabei ausblendet). Schaltet auch den Ton
   // frei, den Safari sonst verweigert.
   (elPlatz || document.getElementById("orb")).addEventListener("click", () => {
+    if(orb.imMusikmodus()){ musikBeenden(); return; }   // auch ohne Anmeldung
     if(!anm.angemeldet()) return;
     entsperren();
-    if(orb.imMusikmodus()) musikBeenden();
-    else if(orb.jetzt() === "ruhe" && !aufnahme) hoeren();
+    if(orb.jetzt() === "ruhe" && !aufnahme) hoeren();
     else beenden();
   });
 
