@@ -779,12 +779,14 @@
     else beenden();
   });
 
-  // Tipp auf den Ball (iPad, Browser): wie ⌥ Leertaste – und schaltet den
-  // Ton frei, den Safari sonst verweigert.
+  // Tipp auf den Ball: zuhören, nochmal tippen beendet – das Fenster bleibt
+  // (anders als ⌥ Leertaste, die dabei ausblendet). Schaltet auch den Ton
+  // frei, den Safari sonst verweigert.
   (elPlatz || document.getElementById("orb")).addEventListener("click", () => {
     if(!anm.angemeldet()) return;
     entsperren();
-    taste();
+    if(orb.jetzt() === "ruhe" && !aufnahme) hoeren();
+    else beenden();
   });
 
   // Rust meldet den Zustand, wenn das Fenster per Kürzel aufgeht
