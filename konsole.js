@@ -717,7 +717,32 @@
     else if(mitHuelle) fetch(HUELLE + "/verbergen", {method: "POST"}).catch(() => {});
   }
 
+  /* Vollbild: sonst ein normales Fenster, auf Wunsch dunkles Vollbild –
+   * Knopf „Vollbild“ oder ⌃⌘F. Mac-App über lib.rs (vollbild_setzen),
+   * Browser und Chrome-App über die Fullscreen-API. Die Mac-App merkt sich
+   * die Wahl. */
+  const elVollbild = document.getElementById("vollbild-knopf");
+  let imVollbild = false;
+  async function vollbild(an){
+    try{
+      if(rufen) await rufen("vollbild_setzen", {an});
+      else if(an) await document.documentElement.requestFullscreen();
+      else if(document.fullscreenElement) await document.exitFullscreen();
+      imVollbild = an;
+      if(rufen) try{ localStorage.setItem("aura.vollbild", an ? "1" : ""); }catch{}
+    }catch(e){ console.error("Vollbild:", e); }
+    if(elVollbild) elVollbild.textContent = imVollbild ? "Fenster" : "Vollbild";
+  }
+  elVollbild?.addEventListener("click", () => vollbild(!imVollbild));
+  document.addEventListener("fullscreenchange", () => {
+    if(rufen) return;
+    imVollbild = !!document.fullscreenElement;
+    if(elVollbild) elVollbild.textContent = imVollbild ? "Fenster" : "Vollbild";
+  });
+  if(rufen){ try{ if(localStorage.getItem("aura.vollbild")) vollbild(true); }catch{} }
+
   document.addEventListener("keydown", e => {
+    if(e.key === "f" && e.metaKey && e.ctrlKey){ e.preventDefault(); vollbild(!imVollbild); return; }
     if(e.key === "Escape"){
       beenden();
       schliessen();
