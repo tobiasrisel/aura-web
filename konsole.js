@@ -18,8 +18,9 @@
   const elPlatz = document.getElementById("orbplatz");
   const orb     = AuraOrb(document.getElementById("orb"), {
     anker: elPlatz,
-    // Mac-App und Browser zeichnen gleich (Vorgabe Tobias, 29.09.2026).
-    punkte: matchMedia("(pointer: coarse)").matches ? 6000 : 9000,
+    // In der Mac-App sparsam: dort zeichnen bis zu drei Baelle (Fenster, Wand, Kugel).
+    punkte: window.__TAURI__ ? 2500 : matchMedia("(pointer: coarse)").matches ? 6000 : 9000,
+    ...(window.__TAURI__ ? {fps: 30, dprMax: 1.5} : {}),
   });
   const elWort  = document.getElementById("wort");
   const elZeile = document.getElementById("zeile");
@@ -704,11 +705,10 @@
   // Klick daneben: lib.rs verbirgt das Fenster und meldet "aura://sichtbar"
   // = false; sichtbar() beendet dann Aufnahme und Ton.
 
-  // Das Overlay ist bildschirmweit und durchsichtig (lib.rs). Ein Klick
-  // neben Ball, Text, Anmeldung, Mitschrift oder Tafel schließt es.
+  // Das Overlay ist bildschirmweit (lib.rs). Ein Klick neben das Bedienfeld
+  // schließt es – wie früher der Klick neben das kleine Fenster.
   document.addEventListener("mousedown", e => {
-    if(!fenster || e.button !== 0) return;
-    if(e.target.closest("#orbplatz, #anmeldung, .gespraech, .wort, .logo, #protokoll, #tafel")) return;
+    if(!fenster || !document.getElementById("rahmen") || e.button !== 0 || e.target.closest("#rahmen, #tafel")) return;
     beenden();
     rufen?.("overlay_schliessen");
   });
