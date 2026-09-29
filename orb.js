@@ -9,12 +9,12 @@
  *
  * Partikelmodus: die Partikel verlassen die Kugel und bilden Woerter, Figuren
  * oder kleine Animationen. Gesteuert ueber AuraOrb.deuten(satz) und
- * orb.befolgen(befehl) – "Partikelmodus an" / "Partikelmodus aus".
+ * orb.befolgen(befehl) – "Partikelmodus" / "Normalmodus".
  *
  * Aufruf:  const orb = AuraOrb(canvas, {anker: element, punkte: 6000});
  *          orb.zustand("denken");  orb.mikro(strom);  orb.mikroAus();  orb.pegel(0.8);
  *          orb.anhalten();  orb.weiter();
- *          orb.befolgen(AuraOrb.deuten("Partikelmodus an"));
+ *          orb.befolgen(AuraOrb.deuten("Partikelmodus"));
  *          orb.zeige({figur: "herz"});  orb.zeige({text: "Hallo"});
  */
 (function () {
@@ -23,11 +23,11 @@
   /* Zwei Farben je Zustand: Grundton und Leuchtfarbe der Flecken.
      "ruhe" entspricht der Vorlage – violett mit Cyan. */
   const ZUSTAENDE = {
-    ruhe:     {wort:"bereit",              a:[142, 88,255], b:[ 64,218,232], dreh:0.10, streu:0.06, grund:0.05},
-    hoeren:   {wort:"hört zu",             a:[ 96,128,255], b:[ 70,236,240], dreh:0.16, streu:0.10, grund:0.10},
-    denken:   {wort:"denkt nach",          a:[150, 84,255], b:[196,132,255], dreh:0.52, streu:0.62, grund:0.30},
-    sprechen: {wort:"spricht",             a:[150, 70,220], b:[250,178,100], dreh:0.22, streu:0.16, grund:0.22},
-    freigabe: {wort:"wartet auf freigabe", a:[176, 48,104], b:[246,124, 84], dreh:0.07, streu:0.05, grund:0.09}
+    ruhe:     {wort:"bereit",              a:[142, 88,255], b:[ 64,218,232], dreh:0.10, streu:0.06, grund:0.05, strudel:0,    flut:0},
+    hoeren:   {wort:"hört zu",             a:[ 96,128,255], b:[ 70,236,240], dreh:0.16, streu:0.10, grund:0.10, strudel:0,    flut:0},
+    denken:   {wort:"denkt nach",          a:[150, 84,255], b:[196,132,255], dreh:0.52, streu:0.62, grund:0.30, strudel:1,    flut:0.35},
+    sprechen: {wort:"spricht",             a:[150, 70,220], b:[250,178,100], dreh:0.22, streu:0.16, grund:0.22, strudel:0.25, flut:1},
+    freigabe: {wort:"wartet auf freigabe", a:[176, 48,104], b:[246,124, 84], dreh:0.07, streu:0.05, grund:0.09, strudel:0,    flut:0}
   };
 
   const TAU = Math.PI * 2;
@@ -504,6 +504,9 @@
     let zustand = "ruhe";
     const A = ZUSTAENDE.ruhe.a.slice(), B = ZUSTAENDE.ruhe.b.slice();
     let dreh = ZUSTAENDE.ruhe.dreh, streu = ZUSTAENDE.ruhe.streu;
+    // Denken: der Kern verdrillt sich (strudel), Wellen laufen nach innen.
+    // Sprechen: die Oberfläche wogt mit der Stimme (flut), Wellen nach außen.
+    let strudel = 0, flut = 0;
     let pegel = 0, zielPegel = 0, extern = null;
     let winkel = 0, zeit = 0, letzt = performance.now(), aktFarbe = "";
     let laeuft = false, bildNr = 0;
@@ -559,9 +562,16 @@
         }
 
         if (typ[i] === 0) {
-          const aus = 1 + (0.035 + auf*0.26)*turb + auf*0.09 + welle*0.05;
+          const woge = flut > 0.01
+            ? flut*(0.05 + auf*0.16)*Math.sin(hx[i]*4.2 + zeit*3.1)*Math.cos(hy[i]*3.4 - zeit*2.3) : 0;
+          const aus = 1 + (0.035 + auf*0.26)*turb + auf*0.09 + welle*(0.05 + flut*0.07) + woge;
           const x0 = hx[i]*aus, y0 = hy[i]*aus, z0 = hz[i]*aus;
-          const x = x0*cosW - z0*sinW, z = x0*sinW + z0*cosW;
+          let x = x0*cosW - z0*sinW, z = x0*sinW + z0*cosW;
+          if (strudel > 0.01) {                       // je Höhe anders gedreht: ein Strudel
+            const d = strudel*hy[i]*(1.5 + Math.sin(zeit*0.9)*0.9);
+            const sd = Math.sin(d), cd = Math.cos(d);
+            const xx = x*cd - z*sd; z = x*sd + z*cd; x = xx;
+          }
           const y2 = y0*cosN - z*sinN, z2 = y0*sinN + z*cosN;
           const per = 1/(1 - z2*0.16);
           ox = mx + x*R*per; oy = my + y2*R*per;
@@ -569,7 +579,9 @@
           nz = rauschen(hx[i]*1.2, hy[i]*1.2, hz[i]*1.2, zeit);
         } else {
           const t = th[i] + winkel*0.55*(1.6/rr[i]);
-          const p = rr[i]*(1 + auf*0.10*turb + welle*0.04);
+          const band = strudel*0.07*Math.sin(t*3 - zeit*2.4 + rr[i]*6);
+          const p = rr[i]*(1 + auf*0.10*turb + welle*(0.04 + flut*0.05) + band
+                           - strudel*0.08*(0.5 + 0.5*Math.sin(zeit*1.3)) + flut*auf*0.08);
           const X = p*Math.cos(t), Zr = p*Math.sin(t), Y = hy[i] + Math.sin(zeit*fq[i] + p1[i])*0.025;
           const y2 = Y*cosH - Zr*sinH, z2 = Y*sinH + Zr*cosH;
           const per = 1/(1 - z2*0.09);
@@ -653,6 +665,8 @@
 
       dreh  += (z.dreh  - dreh )*0.05;
       streu += (z.streu - streu)*0.05;
+      strudel += (z.strudel - strudel)*0.03;
+      flut   += (z.flut   - flut  )*0.04;
 
       if (extern !== null) zielPegel = extern;
       else if (zustand !== "hoeren") {
@@ -662,12 +676,16 @@
       }
       pegel += (zielPegel - pegel)*(zustand === "hoeren" ? 0.30 : 0.10);
 
-      if (zustand === "sprechen" && Math.random() < 0.03 && wellen.length < 4)
-        wellen.push({r: 0.6, kraft: 0.5 + Math.random()*0.5});
+      // Sprechen: Wellen nach außen, öfter bei lauter Stimme.
+      // Denken: Wellen von außen nach innen, als sammle sie sich.
+      if (zustand === "sprechen" && Math.random() < 0.035 + pegel*0.06 && wellen.length < 6)
+        wellen.push({r: 0.6, kraft: 0.5 + Math.random()*0.5, v: 1.6});
+      if (zustand === "denken" && Math.random() < 0.025 && wellen.length < 3)
+        wellen.push({r: 2.4, kraft: 0.45 + Math.random()*0.35, v: -1.1});
       for (let k = wellen.length - 1; k >= 0; k--) {
-        wellen[k].r += dt*1.6;
+        wellen[k].r += dt*wellen[k].v;
         wellen[k].kraft *= 0.992;
-        if (wellen[k].r > 2.6) wellen.splice(k, 1);
+        if (wellen[k].r > 2.6 || wellen[k].r < 0.2) wellen.splice(k, 1);
       }
 
       zeit += dt;
@@ -742,7 +760,7 @@
       zustand(neu) {
         if (!ZUSTAENDE[neu] || neu === zustand) return zustand;
         zustand = neu;
-        if (neu === "sprechen") wellen.length = 0;
+        if (neu === "sprechen" || neu === "denken") wellen.length = 0;
         if (neu !== "sprechen") extern = null;
         return zustand;
       },
@@ -765,8 +783,8 @@
       /* Befehl aus AuraOrb.deuten() ausfuehren; liefert eine kurze Rueckmeldung */
       befolgen(b) {
         if (!b) return null;
-        if (b.befehl === "an")  { api.partikelmodus(true);  zeige({text: "Aura"}); return "Partikelmodus an."; }
-        if (b.befehl === "aus") { api.partikelmodus(false); return "Partikelmodus aus."; }
+        if (b.befehl === "an")  { api.partikelmodus(true);  zeige({text: "Aura"}); return "Partikelmodus."; }
+        if (b.befehl === "aus") { api.partikelmodus(false); return "Normalmodus."; }
         if (b.befehl === "zeige") {
           api.zeige(b);
           if (b.formdaten) return b.formdaten.name || "Form";
@@ -780,7 +798,8 @@
     return api;
   }
 
-  /* Satz deuten. Liefert {befehl:"an"|"aus"} jederzeit. Im Partikelmodus –
+  /* Satz deuten. Liefert {befehl:"an"|"aus"} jederzeit („Partikelmodus“,
+     „Normalmodus“). Im Partikelmodus –
      oder ausserhalb mit dem Signalwort "Partikel" („Partikel Galaxie“,
      „zeig als Partikel ein Segelboot“) – zusaetzlich {befehl:"zeige", …}:
        figur  – eine der festen Figuren,
@@ -791,8 +810,11 @@
   AuraOrb.deuten = function (satz, partikelmodus) {
     const roh = String(satz || "").toLowerCase();
     const kompakt = roh.replace(/[^a-zäöüß]/g, "");
-    if (/partikelmodus(aus|ab|beenden|stopp|stop)/.test(kompakt)) return {befehl: "aus"};
-    if (/partikelmodus(an|ein|starten)/.test(kompakt))            return {befehl: "an"};
+    // „Partikelmodus“ startet, „Normalmodus“ beendet (Vorgabe Tobias, 29.09.).
+    // Die Erkennung schreibt auch „Normal Modus“ – darum ohne Leerzeichen geprüft.
+    if (/normalmodus/.test(kompakt))                                return {befehl: "aus"};
+    if (/partikelmodus(aus|ab|beenden|stopp|stop)/.test(kompakt))   return {befehl: "aus"};
+    if (/partikelmodus/.test(kompakt))                              return {befehl: "an"};
 
     let woerter = roh.replace(/[^a-zäöüß0-9 ]/g, " ").split(/\s+/).filter(Boolean);
     if (!partikelmodus) {

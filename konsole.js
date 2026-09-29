@@ -3,7 +3,7 @@
  * Hören    → eigene Aufnahme → Edge Function "sprache-hoeren" (ElevenLabs Scribe)
  * Denken   → Edge Function "aura" (Claude, mit Aufgaben und Freigaben)
  * Sprechen → Edge Function "sprache-stimme" (ElevenLabs, Sarah)
- * Partikelmodus → "Partikelmodus an" / "Partikelmodus aus"; dazwischen wird
+ * Partikelmodus → "Partikelmodus" / "Normalmodus"; dazwischen wird
  *   jeder Satz zu Wort, Figur oder Animation statt zu einer Frage an Aura.
  *
  * Beide Functions verlangen die Anmeldung (anmeldung.js). Modell- und
@@ -829,7 +829,7 @@
   });
 
   // Zum Ausprobieren ohne Mikrofon, in den Entwicklerwerkzeugen:
-  //   aura.sage("Partikelmodus an");  aura.sage("zeig ein Herz");
+  //   aura.sage("Partikelmodus");  aura.sage("zeig ein Herz");
   window.aura = {sage: t => partikel(t) || antworten(t), figuren: AuraOrb.figuren};
 
   zustand("ruhe");
