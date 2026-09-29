@@ -699,19 +699,9 @@
   freigabenLaden();
   setInterval(() => { if(!document.hidden) freigabenLaden(); }, 60000);
 
-  /* ---------- Fenster ---------- */
-  // Klick daneben verbirgt das Overlay (lib.rs). Verborgen wird nicht
-  // weiter zugehört.
-  // Klick daneben: lib.rs verbirgt das Fenster und meldet "aura://sichtbar"
-  // = false; sichtbar() beendet dann Aufnahme und Ton.
-
-  // Das Overlay ist bildschirmweit (lib.rs). Ein Klick neben das Bedienfeld
-  // schließt es – wie früher der Klick neben das kleine Fenster.
-  document.addEventListener("mousedown", e => {
-    if(!fenster || !document.getElementById("rahmen") || e.button !== 0 || e.target.closest("#rahmen, #tafel")) return;
-    beenden();
-    rufen?.("overlay_schliessen");
-  });
+  /* ---------- Fenster ----------
+   * Verbirgt lib.rs das Fenster, meldet es "aura://sichtbar" = false;
+   * sichtbar() beendet dann Aufnahme und Ton. */
 
   /* Mac-Hülle „Aura Taste“ (mac-taste/): holt die Chrome-App mit ⌥ Leertaste
    * nach vorn und meldet die Taste über 127.0.0.1. Nur in der installierten
