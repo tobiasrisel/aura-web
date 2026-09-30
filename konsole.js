@@ -291,7 +291,9 @@
       const text = ergebnis.antwort;
       freigabenLaden();
       if(meiner !== lauf) return;
-      verlauf.push({rolle: "du", text: frage}, {rolle: "aura", text});
+      // Die Belege (Werkzeugergebnisse) gehen mit den nächsten Fragen zurück –
+      // sonst hielte Aura bei „Ja, bitte“ ihr eigenes Gefundenes für erfunden.
+      verlauf.push({rolle: "du", text: frage}, {rolle: "aura", text, belege: ergebnis.belege || ""});
       zeigen(text, true);
       mitschreiben("aura", text);
       await sprechen(text, meiner);
