@@ -658,7 +658,7 @@
     tafelZeigen("Konten");
     let stand = {};
     try{ stand = await (await anm.rufen("konten-verbinden", {aktion: "status"})).json(); }catch{ /* leer */ }
-    for(const [anbieter, name] of [["linkedin", "LinkedIn"], ["meta", "Facebook-Seiten und Instagram"]]){
+    for(const [anbieter, name] of [["google", "Google Drive"], ["linkedin", "LinkedIn"], ["meta", "Facebook-Seiten und Instagram"]]){
       const s = stand[anbieter] ?? {};
       const p = document.createElement("div"); p.className = "posten";
       const was = document.createElement("div"); was.className = "was"; was.textContent = name;
@@ -744,7 +744,7 @@
 
   // Rückkehr von LinkedIn/Meta (nur Webseite)
   if(rueck.has("konto")){
-    const name = rueck.get("konto") === "meta" ? "Facebook/Instagram" : "LinkedIn";
+    const name = {meta: "Facebook/Instagram", google: "Google Drive"}[rueck.get("konto")] ?? "LinkedIn";
     zeigen(rueck.get("ergebnis") === "verbunden"
       ? `${name} ist verbunden.` : `${name}-Verbindung fehlgeschlagen: ${rueck.get("grund") ?? "unbekannt"}`);
     history.replaceState(null, "", location.pathname);
@@ -861,6 +861,17 @@
     q.onerror = () => { q.close(); setTimeout(huelleVerbinden, 15000); };
   }
   if(mitHuelle) huelleVerbinden();
+
+  // Bildschirmzeit fürs Morgenbriefing: Die Hülle misst, die Seite lädt die
+  // Summen alle fünf Minuten mit ihrer Anmeldung hoch (nur Tobias).
+  async function aktivitaetHochladen(){
+    if(!anm.angemeldet()) return;
+    try{
+      const {eintraege} = await (await fetch(HUELLE + "/aktivitaet")).json();
+      if(eintraege?.length) await anm.rufen("aura", {aktion: "aktivitaet", eintraege});
+    }catch{ /* Hülle aus oder offline – beim nächsten Mal */ }
+  }
+  if(mitHuelle){ setTimeout(aktivitaetHochladen, 20000); setInterval(aktivitaetHochladen, 300000); }
 
   // Klick auf die kleine Kugel (Mac-App): zuhören oder beenden, das Fenster
   // bleibt, wo es ist.
