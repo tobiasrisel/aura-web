@@ -52,7 +52,9 @@
   const rufen  = tauri?.core?.invoke;
   const horchen = tauri?.event?.listen;
   // Nur die Mac-App kann Dateien auf dem Mac aufraeumen (src-tauri/src/dateien.rs).
-  const FAEHIGKEITEN = rufen ? ["mac_dateien"] : [];
+  // Mac-Werkzeuge: in der Tauri-App über Rust, in der Chrome-App über Aura
+  // Taste (ab 0.3, meldet sich unten über /faehigkeiten).
+  let FAEHIGKEITEN = rufen ? ["mac_dateien"] : [];
 
   /* Der Orb zeichnet nur bei sichtbarem Fenster. Beim Programmstart ist das
    * Overlay ausgeblendet, sein Webview laeuft aber schon – deshalb der Blick
@@ -277,13 +279,21 @@
       // Ergebnisse zurueck, bis eine Antwort kommt.
       while(ergebnis.lokal){
         if(meiner !== lauf) return;
-        zeigen("Ich räume auf …");
+        zeigen("Ich sehe auf dem Mac nach …");
         const ergebnisse = [];
         for(const a of ergebnis.lokal.aufrufe){
           try{
-            ergebnisse.push({id: a.id, text: await rufen("mac_werkzeug", {name: a.name, eingabe: a.eingabe})});
+            if(rufen){
+              ergebnisse.push({id: a.id, text: await rufen("mac_werkzeug", {name: a.name, eingabe: a.eingabe})});
+            }else{
+              const r = await (await fetch(HUELLE + "/werkzeug", {
+                method: "POST", headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({name: a.name, eingabe: a.eingabe}),
+              })).json();
+              ergebnisse.push({id: a.id, text: String(r.text ?? "Keine Antwort von Aura Taste."), fehler: !!r.fehler || r.text == null});
+            }
           }catch(e){
-            ergebnisse.push({id: a.id, text: String(e), fehler: true});
+            ergebnisse.push({id: a.id, text: rufen ? String(e) : "Aura Taste antwortet nicht – läuft sie?", fehler: true});
           }
         }
         ergebnis = await (await anm.rufen("aura", {aktion: "weiter", id: ergebnis.lokal.id, ergebnisse})).json();
@@ -872,6 +882,15 @@
     }catch{ /* Hülle aus oder offline – beim nächsten Mal */ }
   }
   if(mitHuelle){ setTimeout(aktivitaetHochladen, 20000); setInterval(aktivitaetHochladen, 300000); }
+
+  // Kann die Hülle Dateien (ab 0.3)? Dann bekommt Aura die Mac-Werkzeuge.
+  async function huelleFaehigkeiten(){
+    try{
+      const {faehigkeiten} = await (await fetch(HUELLE + "/faehigkeiten")).json();
+      if(Array.isArray(faehigkeiten)) FAEHIGKEITEN = faehigkeiten;
+    }catch{ FAEHIGKEITEN = []; }
+  }
+  if(mitHuelle){ huelleFaehigkeiten(); setInterval(huelleFaehigkeiten, 60000); }
 
   // Klick auf die kleine Kugel (Mac-App): zuhören oder beenden, das Fenster
   // bleibt, wo es ist.
