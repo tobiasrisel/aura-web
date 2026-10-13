@@ -121,7 +121,7 @@
 
   /* Tafel: Freigaben und Konten (konsole.js) */
   .tafel{
-    position:absolute;inset:14px;z-index:5;overflow:auto;padding:22px 22px 18px;border-radius:22px;
+    position:absolute;inset:14px;z-index:7;overflow:auto;padding:22px 22px 18px;border-radius:22px;
     background:#05070C;border:1px solid rgba(255,255,255,.1);text-align:left;
     user-select:text;-webkit-user-select:text;
   }
@@ -171,6 +171,71 @@
     .gehoert{visibility:hidden}
     .zeile.antwort{visibility:hidden}
   }
+
+  /* ---------- Schreiben: Texteingabe, ausklappbar ----------
+   * Eingeklappt nur ein kleiner Knopf unten mittig; ausgeklappt eine Zeile
+   * mit Feld, Vorlesen-Schalter und Senden. ⌘K / Strg+K klappt um. */
+  .tippen-knopf{
+    position:fixed;z-index:6;left:50%;transform:translateX(-50%);
+    bottom:calc(clamp(14px,2.6vh,28px) + env(safe-area-inset-bottom));
+    display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;
+    font-size:14px;font-weight:500;letter-spacing:.04em;color:var(--leise);
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
+  }
+  .tippen-knopf:hover{color:var(--text);border-color:rgba(255,255,255,.22)}
+  .tippen-knopf svg{width:18px;height:18px;flex:none}
+  .tippen-knopf kbd{font:inherit;font-size:11.5px;opacity:.55;letter-spacing:0}
+  .tippleiste{
+    position:fixed;z-index:6;left:50%;transform:translateX(-50%);
+    bottom:calc(clamp(14px,2.6vh,28px) + env(safe-area-inset-bottom));
+    width:min(680px,calc(100vw - 32px));
+    display:flex;flex-direction:row;align-items:flex-end;gap:6px;padding:6px;border-radius:18px;text-align:left;
+    background:rgba(10,13,22,.92);border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 12px 40px rgba(0,0,0,.45);
+  }
+  .tippleiste:focus-within{border-color:rgba(78,107,128,.9)}
+  .tippleiste textarea{
+    flex:1;min-width:0;resize:none;max-height:9.5em;
+    font:inherit;font-size:17px;line-height:1.4;color:var(--text);
+    background:none;border:none;outline:none;padding:9px 8px 9px 10px;text-align:left;
+    user-select:text;-webkit-user-select:text;
+  }
+  .tippleiste textarea::placeholder{color:var(--leise);opacity:.7}
+  .tippleiste .rund{
+    width:40px;height:40px;padding:0;flex:none;border-radius:12px;
+    display:grid;place-items:center;background:none;border:1px solid transparent;color:var(--leise);
+  }
+  .tippleiste .rund:hover{color:var(--text);background:rgba(255,255,255,.06)}
+  .tippleiste .rund svg{width:20px;height:20px}
+  .tippleiste #tippen-senden{background:rgba(78,107,128,.55);color:var(--text)}
+  .tippleiste #tippen-senden:disabled{opacity:.35}
+  /* Vorlesen aus: Lautsprecher durchgestrichen */
+  #tippen-vorlesen .an{display:none}
+  #tippen-vorlesen[aria-pressed="true"] .an{display:block}
+  #tippen-vorlesen[aria-pressed="true"] .aus{display:none}
+  #tippen-vorlesen[aria-pressed="true"]{color:var(--text)}
+  .tippleiste[hidden],.tippen-knopf[hidden]{display:none}
+  body.abgemeldet .tippleiste,body.abgemeldet .tippen-knopf,
+  body.musik .tippleiste,body.musik .tippen-knopf{display:none}
+  /* Platz für die Leiste: der Text unter dem Ball rückt nach oben */
+  body:not(.abgemeldet) .rahmen{padding-bottom:calc(clamp(20px,4vh,48px) + 52px)}
+  @media (max-width:899px){
+    /* Schmal (iPhone, iPad hochkant): Mitschrift als Kasten über der Leiste */
+    body.tippen .protokoll{
+      display:flex;flex-direction:column;gap:10px;position:fixed;z-index:5;
+      left:50%;transform:translateX(-50%);width:min(680px,calc(100vw - 32px));
+      bottom:calc(clamp(14px,2.6vh,28px) + env(safe-area-inset-bottom) + 66px);
+      max-height:38vh;overflow-y:auto;overscroll-behavior:contain;padding:14px 16px;
+      border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(5,7,12,.86);
+      font-size:15px;line-height:1.5;user-select:text;-webkit-user-select:text;
+    }
+    body.tippen .protokoll:empty{display:none}
+    body.tippen .protokoll > :first-child{margin-top:auto}
+    body.tippen .protokoll .du{color:var(--leise)}
+    body.tippen .protokoll .wer{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--akt);margin-bottom:2px}
+    body.tippen:not(.ohne-text) .gehoert,body.tippen:not(.ohne-text) .zeile.antwort{visibility:hidden}
+    body.tippen.ohne-text .protokoll{display:none}
+  }
 </style>
 </head>
 <body class="abgemeldet">
@@ -209,14 +274,31 @@
     <div class="gehoert" id="gehoert"></div>
     <div class="zeile" id="zeile"></div>
   </div>
+  <button class="tippen-knopf" id="tippen-knopf" type="button" aria-expanded="false" aria-controls="tippleiste" title="Schreiben (⌘K)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M8 14h8"/></svg>
+    Schreiben <kbd>⌘K</kbd>
+  </button>
+  <form class="tippleiste" id="tippleiste" hidden autocomplete="off">
+    <button class="rund" id="tippen-zu" type="button" aria-label="Texteingabe einklappen" title="Einklappen (Esc)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <textarea id="tippen-feld" rows="1" placeholder="Schreib Aura …" aria-label="Nachricht an Aura" enterkeyhint="send"></textarea>
+    <button class="rund" id="tippen-vorlesen" type="button" aria-pressed="false" aria-label="Antwort vorlesen" title="Antwort zusätzlich vorlesen">
+      <svg class="aus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+      <svg class="an" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+    </button>
+    <button class="rund" id="tippen-senden" type="submit" aria-label="Senden" title="Senden (Enter)" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+    </button>
+  </form>
   <div class="tafel" id="tafel" hidden>
     <button class="abmelden schliessen" type="button" id="tafel-zu">schließen</button>
     <div id="tafel-inhalt"></div>
   </div>
 </div>
-<script src="konfig.js?v=20260930233725"></script>
-<script src="anmeldung.js?v=20260930233725"></script>
-<script src="orb.js?v=20260930233725"></script>
-<script src="konsole.js?v=20260930233725"></script>
+<script src="konfig.js?v=20261013010709"></script>
+<script src="anmeldung.js?v=20261013010709"></script>
+<script src="orb.js?v=20261013010709"></script>
+<script src="konsole.js?v=20261013010709"></script>
 </body>
 </html>

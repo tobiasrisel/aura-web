@@ -223,7 +223,8 @@
     }
   }
 
-  async function sprechen(text, meiner){
+  // weiterHoeren = false: nach getippter Frage nicht von selbst das Mikrofon öffnen.
+  async function sprechen(text, meiner, weiterHoeren = true){
     zustand("sprechen");
     try{
       const antwort = await anm.rufen("sprache-stimme", {text});
@@ -241,7 +242,7 @@
       klang.onended = () => {
         orb.pegel(null);
         zustand("ruhe");
-        if(meiner === lauf && offen) hoeren(true);
+        if(meiner === lauf && offen && weiterHoeren) hoeren(true);
       };
       await klang.play();
 
@@ -266,7 +267,9 @@
   // gespeichert wird noch nichts (conversation_log folgt).
   const verlauf = [];
 
-  async function antworten(frage){
+  // getippt = true: Frage kam aus der Texteingabe. Dann antwortet Aura als
+  // Text; vorgelesen wird nur, wenn der Lautsprecher in der Leiste an ist.
+  async function antworten(frage, {getippt = false} = {}){
     if(!frage) return;
     const meiner = lauf;
     zustand("denken");
@@ -306,7 +309,8 @@
       verlauf.push({rolle: "du", text: frage}, {rolle: "aura", text, belege: ergebnis.belege || ""});
       zeigen(text, true);
       mitschreiben("aura", text);
-      await sprechen(text, meiner);
+      if(getippt && !vorlesen){ zustand("ruhe"); return; }
+      await sprechen(text, meiner, !getippt);
     }catch(e){
       if(meiner !== lauf) return;
       console.error("Antwort:", e);
@@ -840,8 +844,14 @@
 
   document.addEventListener("keydown", e => {
     if(e.key === "f" && e.metaKey && e.ctrlKey){ e.preventDefault(); vollbild(!imVollbild); return; }
+    // ⌘K / Strg+K: Texteingabe auf- und zuklappen
+    if(e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey) && !e.altKey && anm.angemeldet()){
+      e.preventDefault(); tippleiste(elTippleiste.hidden); return;
+    }
     if(e.key === "Escape"){
       if(!elMenue.hidden){ menue(false); return; }
+      // Im Textfeld: nur die Leiste einklappen, Aura läuft weiter.
+      if(e.target === elTippFeld){ tippleiste(false); return; }
       if(orb.imMusikmodus()){ musikBeenden(); return; }
       beenden();
       schliessen();
@@ -915,6 +925,94 @@
     if(ev.payload === "hoeren") hoeren();
     else zustand(ev.payload);
   });
+
+  /* ---------- Schreiben ----------
+   * Texteingabe statt Sprache, ausklappbar (Knopf unten, ⌘K / Strg+K).
+   * Getippt geht denselben Weg wie Gesprochenes: Partikelbefehle, sonst
+   * Frage an Aura, mit Verlauf, Mac-Werkzeugen und Freigaben. Die Antwort
+   * steht als Text da; vorgelesen wird sie nur mit eingeschaltetem
+   * Lautsprecher, und danach öffnet Aura nicht von selbst das Mikrofon.
+   * Ob die Leiste offen ist und ob vorgelesen wird, bleibt gespeichert.
+   */
+  const elTippleiste = document.getElementById("tippleiste");
+  const elTippKnopf  = document.getElementById("tippen-knopf");
+  const elTippFeld   = document.getElementById("tippen-feld");
+  const elTippSenden = document.getElementById("tippen-senden");
+  const elVorlesen   = document.getElementById("tippen-vorlesen");
+  let vorlesen = false;
+
+  // Auf Mac-Tastaturen ⌘K, sonst Strg+K
+  if(!/Mac|iPhone|iPad/.test(navigator.platform)){
+    const kbd = elTippKnopf?.querySelector("kbd");
+    if(kbd) kbd.textContent = "Strg+K";
+    elTippKnopf?.setAttribute("title", "Schreiben (Strg+K)");
+  }
+  // Auf Touchgeräten ohne Tastatur kein Kürzel anzeigen
+  if(matchMedia("(pointer: coarse)").matches) elTippKnopf?.querySelector("kbd")?.remove();
+
+  function feldHoehe(){
+    elTippFeld.style.height = "auto";
+    elTippFeld.style.height = Math.min(elTippFeld.scrollHeight, 160) + "px";
+    elTippSenden.disabled = !elTippFeld.value.trim();
+  }
+
+  function tippleiste(auf, {fokus = true} = {}){
+    if(!elTippleiste) return;
+    elTippleiste.hidden = !auf;
+    elTippKnopf.hidden = auf;
+    elTippKnopf.setAttribute("aria-expanded", auf ? "true" : "false");
+    document.body.classList.toggle("tippen", auf);
+    try{ localStorage.setItem("aura.tippen", auf ? "1" : ""); }catch{}
+    if(auf){
+      feldHoehe();
+      if(fokus) setTimeout(() => elTippFeld.focus(), 30);
+    }else if(document.activeElement === elTippFeld){
+      elTippFeld.blur();
+    }
+  }
+
+  function vorlesenSetzen(an){
+    vorlesen = !!an;
+    elVorlesen?.setAttribute("aria-pressed", vorlesen ? "true" : "false");
+    elVorlesen?.setAttribute("title", vorlesen ? "Antwort wird vorgelesen – tippen zum Ausschalten" : "Antwort zusätzlich vorlesen");
+    try{ localStorage.setItem("aura.vorlesen", vorlesen ? "1" : ""); }catch{}
+  }
+
+  function abschicken(){
+    const satz = elTippFeld.value.trim();
+    if(!satz || !anm.angemeldet()) return;
+    // Laufendes Zuhören oder Sprechen abbrechen – die getippte Frage gilt.
+    if(aufnahme || orb.jetzt() !== "ruhe") beenden();
+    if(vorlesen) entsperren();                 // Senden ist eine Nutzergeste (Safari)
+    elTippFeld.value = "";
+    feldHoehe();
+    // Getippt soll man den Wortlaut auch sehen
+    if(document.body.classList.contains("ohne-text")) textAnzeige(true);
+    elHoert.textContent = satz;
+    mitschreiben("du", satz);
+    if(partikel(satz)) return;
+    if(orb.imPartikelmodus()){ zeigen("Das habe ich nicht verstanden."); return; }
+    antworten(satz, {getippt: true});
+  }
+
+  if(elTippleiste){
+    elTippKnopf.addEventListener("click", (e) => { e.stopPropagation(); tippleiste(true); });
+    document.getElementById("tippen-zu")?.addEventListener("click", (e) => { e.stopPropagation(); tippleiste(false); });
+    elVorlesen?.addEventListener("click", (e) => { e.stopPropagation(); vorlesenSetzen(!vorlesen); elTippFeld.focus(); });
+    elTippleiste.addEventListener("click", (e) => e.stopPropagation());
+    elTippleiste.addEventListener("mousedown", (e) => e.stopPropagation());
+    elTippleiste.addEventListener("submit", (e) => { e.preventDefault(); abschicken(); });
+    elTippFeld.addEventListener("input", feldHoehe);
+    // Enter sendet, Umschalt+Enter macht eine neue Zeile. Während der
+    // Eingabe japanischer o. ä. Zeichen (isComposing) nicht senden.
+    elTippFeld.addEventListener("keydown", (e) => {
+      if(e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); abschicken(); }
+    });
+    try{
+      vorlesenSetzen(!!localStorage.getItem("aura.vorlesen"));
+      if(localStorage.getItem("aura.tippen")) tippleiste(true, {fokus: false});
+    }catch{}
+  }
 
   // Zum Ausprobieren ohne Mikrofon, in den Entwicklerwerkzeugen:
   //   aura.sage("Partikelmodus");  aura.sage("zeig ein Herz");
